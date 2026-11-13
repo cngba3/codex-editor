@@ -21,12 +21,12 @@ Máy chạy job cần Codex CLI đã đăng nhập, `uv` và Python 3.11 (`uv py
 - `reel.json` và `build.mjs` của `ghost-editor`: caption, beat đồ họa, preset style, nhạc nền và SFX.
 - `transitions.py` của repo gốc tạo dissolve giữa các take; HyperFrames xuất MP4.
 - `qa.py --no-stem` kiểm tra thời lượng, âm thanh, caption và chuyển cảnh sau render; Codex xem contact sheet và ghi lỗi hình nhìn thấy.
-- Chế độ video mẫu gọi `reference_study.py` của repo gốc khi máy có `GEMINI_API_KEY`; Codex dùng log phân tích để lập kế hoạch. Chưa kiểm thử chế độ này trên máy hiện tại vì chưa có key.
-- Tạo ảnh minh họa bằng `broll_gen.py` khi có `GEMINI_API_KEY`. Khi chưa có key, app tạo hình vector cục bộ và báo rõ trong job.
+- Chế độ video mẫu trích 6 khung hình; Codex phân tích bố cục, màu và caption rồi chọn preset gần nhất. Phân tích từ ảnh tĩnh không thể xác định chính xác âm thanh hay nhịp cắt.
+- Codex đề xuất ý tưởng minh họa trong kế hoạch dựng; app vẽ minh họa SVG cục bộ, không cần Gemini API key.
 
 ## Phần còn cần nâng cấp
 
-Repo gốc có nhiều recipe riêng và công cụ B-roll, matte, meme, kiểm duyệt người trong ảnh. Bản Windows hiện dùng 7 preset của `styles/`; các recipe riêng chưa tự động chạy từ giao diện. Tìm stock B-roll và tạo ảnh AI cần nguồn media hoặc Gemini key, nên bản thử không thể bảo đảm hình minh họa như mọi demo. Nhận dạng tiếng Việt vẫn có thể sai chữ và cần review. Script QA hiện chạy với `--no-stem`, chưa chạy bước render stem SFX riêng.
+Repo gốc có nhiều recipe riêng và công cụ B-roll, matte, meme, kiểm duyệt người trong ảnh. Bản Windows hiện dùng 7 preset của `styles/`; các recipe riêng chưa tự động chạy từ giao diện. Bản thử dùng SVG cục bộ, chưa tự tìm stock B-roll hoặc tạo ảnh AI như mọi demo. Nhận dạng tiếng Việt vẫn có thể sai chữ và cần review. Script QA hiện chạy với `--no-stem`, chưa chạy bước render stem SFX riêng.
 
 Studio liệt kê đủ 18 thư mục recipe và biến thể Face RESULT để người dùng thấy mã nguồn đã có. Các mục chưa nối bộ dựng được ghi rõ và chưa thể chọn để render; chỉ 7 preset có nút dựng hoạt động.
 

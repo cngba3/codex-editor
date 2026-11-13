@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["preset", "captionStyle", "accent", "visualNotes", "cutNotes", "limitations"],
+  "properties": {
+    "preset": { "type": "string", "enum": ["clean", "editorial", "meme", "cinematic", "launch", "kinetic", "pop"] },
+    "captionStyle": { "type": "string", "enum": ["clean", "editorial", "hype", "explosive", "line-focus", "neo-minimal", "karaoke-fill", "highlighter"] },
+    "accent": { "type": "string" },
+    "visualNotes": { "type": "string" },
+    "cutNotes": { "type": "string" },
+    "limitations": { "type": "string" }
+  }
+}

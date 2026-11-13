@@ -486,7 +486,15 @@ if (spec.matte || panelMatte.length) {
   } else if (!fs.existsSync(mp)) {
     if (mcfg.engine !== "hyperframes") warn.push(`matte: BiRefNet venv not set up (bash ${path.join(SKILL, "scripts", "setup_matte.sh")}); used hyperframes remove-background (u2net: softer, jumpier edges)`);
     console.log("cutting the speaker out (hyperframes remove-background, ~4 fps; cached in assets/talk-matte.webm)...");
-    execFileSync("npx", ["-y", HF, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "ignore", "pipe"], cwd: proj, maxBuffer: 1 << 28 }); console.log("  matte done");
+    const localCli = process.env.HYPERFRAMES_CLI_PATH;
+    if (localCli && fs.existsSync(localCli)) {
+      execFileSync(process.execPath, [localCli, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+    } else if (process.platform === "win32") {
+      execFileSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npx", "-y", HF, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+    } else {
+      execFileSync("npx", ["-y", HF, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+    }
+    console.log("  matte done");
   }
   if (spec.matte) matteHtml = takes.map((k, i) => `
       <video id="matte-${i}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${k.a}" data-track-index="2" muted playsinline></video>`).join("");
