@@ -8,3 +8,4 @@ test-words.json
 .env
 .env.*
 !.env.example
+ghost-editor/.git.local-backup/
