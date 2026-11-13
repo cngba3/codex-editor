@@ -583,7 +583,9 @@ for (const b of beatsList) {
   }
   let inner = "", css = "";
   // cards and the reaction slot avoid the face too (unless the spec pins them)
-  const CARD_H = { big: b.sub ? 230 : 180, chips: 200, strike: 190, quote: 90 + (b.lines || []).length * 70, list: 60 + (b.lines || []).length * 64 };
+  // Big cards can wrap to two lines at 96px. Reserve their rendered height so
+  // face-aware captions move below the card instead of crossing its last line.
+  const CARD_H = { big: b.sub ? 340 : 300, chips: 200, strike: 190, quote: 90 + (b.lines || []).length * 70, list: 60 + (b.lines || []).length * 64 };
   let cy = CARD.y;
   if (CARD_H[b.type] && spec.layout?.cardY === undefined && face) {
     const pc = placer.card(t0, t1, CARD_H[b.type] * (spec.layout?.compact ? 0.8 : 1));
