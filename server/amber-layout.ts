@@ -2,9 +2,9 @@ export type TimedWord = { word: string; start: number; end: number }
 export type TimedSegment = { start: number; end: number; text: string; words?: TimedWord[] }
 export type Take = { a: number; b: number }
 export type AmberCandidate = { mode: 'progressive' | 'black'; text: string; at: number; to: number }
-export type AmberPart = { text: string; at: number; role: 'serif' | 'hero' | 'support' }
+export type AmberPart = { text: string; at: number; role: 'serif' | 'hero' | 'support' | 'connector' }
 export type AmberBeat = {
-  type: 'type-composition' | 'black-flash'
+  type: 'type-composition' | 'black-flash' | 'type-connector'
   at: number
   to: number
   text: string
@@ -28,35 +28,50 @@ function matchWords(candidate: AmberCandidate, source: TimedWord[]) {
   // ASR and Codex may punctuate a phrase differently. Keep the text that was
   // actually transcribed in the chosen time window so the onset stays true.
   const inside = nearby.filter(word => word.start >= candidate.at - 0.12 && word.start < candidate.to + 0.12)
-  return (inside.length ? inside : nearby).slice(0, 8)
+  return (inside.length ? inside : nearby).slice(0, 16)
+}
+
+function connectorLength(words: TimedWord[]) {
+  const first = token(words[0]?.word || '')
+  const second = token(words[1]?.word || '')
+  if ((first === 'co' && second === 'le') || (first === 'da' && second === 'tung')) return 2
+  return new Set(['nhung', 'tuy', 'con', 'roi', 'vay']).has(first) ? 1 : 0
 }
 
 function splitParts(words: TimedWord[], variant: number): AmberPart[] {
-  const count = words.length
+  const openerCount = connectorLength(words)
+  const opener = openerCount ? words.slice(0, openerCount) : []
+  const body = words.slice(openerCount)
+  const count = body.length
   const groups: TimedWord[][] = count <= 2
-    ? words.map(word => [word])
+    ? body.map(word => [word])
     : count === 3
-      ? [words.slice(0, 1), words.slice(1)]
-      : [words.slice(0, 1), words.slice(1, Math.min(3, count)), words.slice(Math.min(3, count))].filter(group => group.length)
+      ? [body.slice(0, 1), body.slice(1)]
+      : count <= 7
+        ? [body.slice(0, 1), body.slice(1, Math.min(3, count)), body.slice(Math.min(3, count))].filter(group => group.length)
+        : [body.slice(0, 2), body.slice(2, 4), body.slice(4, Math.ceil((count + 4) / 2)), body.slice(Math.ceil((count + 4) / 2))].filter(group => group.length)
   const patterns: AmberPart['role'][][] = [
-    ['serif', 'hero', 'support'],
-    ['support', 'hero', 'serif'],
-    ['hero', 'serif', 'support'],
-    ['serif', 'support', 'hero'],
+    ['serif', 'hero', 'support', 'hero'],
+    ['support', 'hero', 'serif', 'support'],
+    ['hero', 'serif', 'support', 'hero'],
+    ['serif', 'support', 'hero', 'support'],
   ]
   const roles = patterns[variant % patterns.length]
-  return groups.map((group, i) => ({ text: textOf(group), at: group[0].start, role: roles[Math.min(i, roles.length - 1)] }))
+  return [
+    ...(opener.length ? [{ text: textOf(opener) + (openerCount === 1 ? '...' : ''), at: opener[0].start, role: 'connector' as const }] : []),
+    ...groups.map((group, i) => ({ text: textOf(group), at: group[0].start, role: roles[Math.min(i, roles.length - 1)] })),
+  ]
 }
 
 export function buildAmberBeats(candidates: AmberCandidate[], segments: TimedSegment[], takes: Take[], layouts: string[], illustration?: { at: number; to: number }): AmberBeat[] {
   const source = segments.flatMap(segment => segment.words || []).filter(word => takes.some(take => word.start >= take.a - 0.05 && word.end <= take.b + 0.05))
   const kept: { candidate: AmberCandidate; words: TimedWord[]; take: Take }[] = []
   for (const candidate of [...candidates].sort((a, b) => a.at - b.at)) {
-    if (!Number.isFinite(candidate.at) || !Number.isFinite(candidate.to) || candidate.to - candidate.at < 0.5 || candidate.to - candidate.at > 3.2) continue
+    if (!Number.isFinite(candidate.at) || !Number.isFinite(candidate.to) || candidate.to - candidate.at < 0.5 || candidate.to - candidate.at > 4.8) continue
     const take = takes.find(item => candidate.at >= item.a - 0.05 && candidate.to <= item.b + 0.05)
     if (!take || kept.some(item => candidate.at < item.candidate.to + 0.18 && candidate.to > item.candidate.at - 0.18)) continue
     if (illustration && candidate.at < illustration.to + 0.1 && candidate.to > illustration.at - 0.1) continue
-    const words = matchWords(candidate, source).filter(word => word.start >= take.a - 0.05 && word.end <= take.b + 0.05).slice(0, 8)
+    const words = matchWords(candidate, source).filter(word => word.start >= take.a - 0.05 && word.end <= take.b + 0.05).slice(0, 16)
     if (!words.length) continue
     kept.push({ candidate, words, take })
     if (kept.length >= 8) break
@@ -64,11 +79,25 @@ export function buildAmberBeats(candidates: AmberCandidate[], segments: TimedSeg
   if (!kept.length) return []
   let blackIndex = kept.findIndex(item => item.candidate.mode === 'black')
   if (blackIndex < 0 && kept.length >= 4) blackIndex = Math.floor(kept.length / 2)
-  return kept.map((item, i) => {
+  const beats = kept.map((item, i): AmberBeat => {
     const at = Math.max(item.take.a, Math.min(item.candidate.at, item.words[0].start))
     const to = Math.min(item.take.b, Math.max(item.candidate.to, item.words.at(-1)!.end + 0.16))
     const text = textOf(item.words)
     if (i === blackIndex) return { type: 'black-flash', at, to, text }
-    return { type: 'type-composition', at, to, text, placement: layouts.length ? layouts[i % layouts.length] : 'lower-center', parts: splitParts(item.words, i) }
+    const parts = splitParts(item.words, i)
+    const placement = parts[0]?.role === 'connector' ? 'connector-split' : parts.length >= 4 ? 'split-safe' : layouts.length ? layouts[i % layouts.length] : 'lower-center'
+    return { type: 'type-composition', at, to, text, placement, parts }
   })
+  // A discourse opener at a take boundary can be its own short top accent,
+  // even when the planner did not choose the surrounding sentence.
+  for (const take of takes.slice(1)) {
+    const opening = source.filter(word => word.start >= take.a - .05 && word.start < take.a + .3).slice(0, 2)
+    const length = connectorLength(opening)
+    if (!length) continue
+    const at = opening[0].start
+    const to = Math.min(take.b, at + 1.1, illustration && illustration.at > at ? illustration.at : Infinity, ...beats.filter(beat => beat.at > at).map(beat => beat.at))
+    if (to - at < .45 || beats.some(beat => at < beat.to && to > beat.at)) continue
+    beats.push({ type: 'type-connector', at, to, text: textOf(opening.slice(0, length)) + (length === 1 ? '...' : '') })
+  }
+  return beats.sort((a, b) => a.at - b.at)
 }

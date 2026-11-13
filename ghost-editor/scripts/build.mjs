@@ -717,49 +717,74 @@ for (const b of beatsList) {
       break;
     }
     case "type-composition": {
-      const parts = Array.isArray(b.parts) ? b.parts.slice(0, 3) : [];
+      const parts = Array.isArray(b.parts) ? b.parts.slice(0, 6) : [];
       if (!parts.length) break;
+      const firstPartAt = Math.max(t0, Math.min(...parts.map(part => E(part.at, "composition word"))));
+      hiddenCaps.push([firstPartAt, t1]);
       const head = face ? placer.span(t0, t1) : null;
-      const requestedUpper = String(b.placement || "").startsWith("upper");
-      const upperHasRoom = !head?.seen || head.top > 420;
-      const lowerHasRoom = !head?.seen || head.bottom < 1160;
-      const upper = requestedUpper ? upperHasRoom : !lowerHasRoom && upperHasRoom;
-      const placement = upper ? "upper" : "lower";
-      const right = String(b.placement || "").includes("right");
-      const center = String(b.placement || "").includes("center");
-      const x = right ? 145 : center ? 100 : 72;
-      const width = right ? 780 : center ? 880 : 810;
-      const align = right ? "right" : center ? "center" : "left";
-      const baseY = placement === "upper"
-        ? Math.max(100, Math.min(185, (head?.top ?? 600) - 390))
-        : Math.max(1050, Math.min(1180, (head?.bottom ?? 900) + 110));
-      const sizes = parts.map(part => {
+      const split = ["split-safe", "connector-split"].includes(b.placement) || parts.length >= 4;
+      const opener = parts[0]?.role === "connector";
+      const topCount = split ? (opener ? 1 : 2) : 0;
+      const leftSpace = head?.seen ? Math.max(0, head.left - 65) : 310;
+      const rightSpace = head?.seen ? Math.max(0, W - head.right - 65) : 310;
+      const side = rightSpace >= leftSpace ? "right" : "left";
+      const sideRoom = Math.max(leftSpace, rightSpace);
+      const topSide = split && !opener && sideRoom >= 270;
+      const topWidth = topSide ? Math.min(420, Math.max(270, sideRoom - 10)) : 900;
+      const topX = topSide ? (side === "right" ? W - topWidth - 65 : 65) : 90;
+      const topAlign = topSide ? side : "center";
+      const topY = topSide ? Math.max(155, Math.min(440, (head?.top ?? 260) + 15)) : Math.max(70, Math.min(160, (head?.top ?? 270) - 145));
+      const lowerY = head?.seen ? Math.max(1030, Math.min(1220, head.bottom + 70)) : 1090;
+      const requestedUpper = String(b.placement || "").startsWith("upper") && (head?.top ?? 300) > 220;
+      const mainY = requestedUpper && !split ? Math.max(70, Math.min(145, (head?.top ?? 300) - 160)) : lowerY;
+      const mainX = requestedUpper && b.placement === "upper-left" ? 70 : 90;
+      const mainWidth = requestedUpper && b.placement === "upper-left" ? 900 : 900;
+      const mainAlign = requestedUpper && b.placement === "upper-left" ? "left" : "center";
+      const lineHeight = (part, size, width) => {
+        const chars = [...String(part.text || "")].length;
+        const lines = Math.max(1, Math.ceil(chars / (width / (size * (part.role === "serif" ? .52 : .56)))));
+        return Math.ceil(lines * size * 1.08 + 10);
+      };
+      const sizeOf = (part, width, compact) => {
         const serif = part.role === "serif";
-        const maxSize = serif ? 51 : part.role === "hero" ? 105 : 72;
+        const max = part.role === "connector" ? 83 : serif ? (compact ? 43 : 51) : part.role === "hero" ? (compact ? 76 : 105) : (compact ? 58 : 72);
         const fit = Math.floor(width / Math.max(1, [...String(part.text || "")].length * (serif ? .52 : .56)));
-        return Math.max(serif ? 31 : 38, Math.min(maxSize, fit));
-      });
-      const heights = parts.map((part, i) => {
-        const charsPerLine = width / (sizes[i] * (part.role === "serif" ? .52 : .56));
-        const lines = Math.max(1, Math.ceil([...String(part.text || "")].length / charsPerLine));
-        return Math.ceil(sizes[i] * 1.1 * lines + 12);
-      });
-      const totalH = heights.reduce((sum, h) => sum + h, 0);
-      const y0 = Math.max(85, Math.min(1490 - totalH, baseY));
-      let offset = 0;
+        return Math.max(serif ? 29 : 37, Math.min(max, fit));
+      };
+      const topSizes = parts.slice(0, topCount).map(part => sizeOf(part, topWidth, topSide));
+      const mainSizes = parts.slice(topCount).map(part => sizeOf(part, mainWidth, false));
+      const mainHeights = parts.slice(topCount).map((part, i) => lineHeight(part, mainSizes[i], mainWidth));
+      const mainTotal = mainHeights.reduce((sum, h) => sum + h, 0);
+      let topOffset = 0, mainOffset = 0;
+      const mainStart = Math.max(80, Math.min(1500 - mainTotal, mainY));
       const html = parts.map((part, i) => {
-        const role = part.role === "hero" ? "hero" : part.role === "support" ? "support" : "serif";
+        const inTop = i < topCount;
+        const role = ["hero", "support", "connector"].includes(part.role) ? part.role : "serif";
         const serif = role === "serif";
         const phrase = String(part.text || "").trim();
-        const size = sizes[i];
-        const color = role === "hero" ? (brand.accent || "#F4E7A5") : "#fff";
+        const size = inTop ? topSizes[i] : mainSizes[i - topCount];
+        const color = role === "hero" || role === "connector" ? (brand.accent || "#F4E7A5") : "#fff";
         const at = Math.max(t0, Math.min(t1 - .07, E(part.at, "composition word")));
         tl.push(`ft("#${id}-p${i}", { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power2.out" }, ${at});`);
-        const top = y0 + offset;
-        offset += heights[i];
+        const x = inTop ? topX : mainX;
+        const width = inTop ? topWidth : mainWidth;
+        const align = inTop ? topAlign : mainAlign;
+        const top = inTop ? topY + topOffset : mainStart + mainOffset;
+        if (inTop) topOffset += lineHeight(part, size, width);
+        else mainOffset += mainHeights[i - topCount];
         return `<div id="${id}-p${i}" style="position:absolute;left:${x}px;top:${top}px;width:${width}px;text-align:${align};font-family:'${serif ? "Playfair Display" : "Inter Tight"}',sans-serif;font-size:${size}px;font-weight:${serif ? 500 : 850};font-style:${serif ? "normal" : "italic"};line-height:1.05;letter-spacing:${serif ? "-1px" : "-3px"};color:${color};text-shadow:0 5px 20px rgba(0,0,0,.72);white-space:normal;overflow-wrap:break-word">${esc(phrase)}</div>`;
       }).join("");
       inner = `<div id="${id}-in" class="ov" style="inset:0;z-index:4">${html}</div>`;
+      break;
+    }
+    case "type-connector": {
+      hiddenCaps.push([t0, t1]);
+      const head = face ? placer.span(t0, t1) : null;
+      const y = Math.max(70, Math.min(150, (head?.top ?? 270) - 145));
+      const phrase = String(b.text || "").trim();
+      const size = Math.max(48, Math.min(86, Math.floor(900 / Math.max(1, [...phrase].length * .56))));
+      inner = `<div id="${id}-in" class="ov" style="left:90px;top:${y}px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:italic;color:${brand.accent || "#F4E7A5"};text-shadow:0 5px 20px rgba(0,0,0,.65)">${esc(phrase)}</div>`;
+      tl.push(enter(`#${id}-in`, t0));
       break;
     }
     case "black-flash": {
@@ -988,7 +1013,7 @@ if (cap.style !== "editorial" && cap.style !== "none" && !isTpl) {
   const merged = [];
   for (const [a, b] of [...wins].sort((x, y) => x[0] - y[0])) { if (merged.length && a <= merged.at(-1)[1] + 0.05) merged.at(-1)[1] = Math.max(merged.at(-1)[1], b); else merged.push([a, b]); }
   tl.push(`tl.set("#caps", { autoAlpha: 1 }, 0);`);
-  for (const [a, b] of merged) { tl.push(`tl.to("#caps", { autoAlpha: 0, duration: 0.08 }, ${r3(a)});`); tl.push(`tl.to("#caps", { autoAlpha: 1, duration: 0.12 }, ${r3(b - 0.05)});`); }
+  for (const [a, b] of merged) { tl.push(`tl.set("#caps", { autoAlpha: 0 }, ${r3(a)});`); tl.push(`tl.set("#caps", { autoAlpha: 1 }, ${r3(b)});`); }
 }
 const edit = cap.style === "editorial" ? buildEditorialCaptions(words, cap, motionCtx, cap.onlyInScenes ? complement(shownCaps) : hiddenCaps) : null;
 // a template keeps its own grouping and size: only reel.json's own captions block overrides it, never the style
