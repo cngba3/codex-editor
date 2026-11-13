@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.local
+*.tsbuildinfo
+jobs/
+.cache/
+test-words.json
+.env
+.env.*
+!.env.example

@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "preset": { "type": "string", "enum": ["clean", "editorial", "meme", "cinematic", "launch", "kinetic", "pop"] },
+    "captionStyle": { "type": "string", "enum": ["clean", "editorial", "hype", "explosive", "line-focus", "neo-minimal", "karaoke-fill", "highlighter"] },
+    "accent": { "type": "string" },
+    "takes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "a": { "type": "number" }, "b": { "type": "number" } },
+        "required": ["a", "b"],
+        "additionalProperties": false
+      }
+    },
+    "highlights": { "type": "array", "items": { "type": "string" } },
+    "graphics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["big", "scene"] },
+          "text": { "type": "string" },
+          "at": { "type": "number" },
+          "to": { "type": "number" }
+        },
+        "required": ["kind", "text", "at", "to"],
+        "additionalProperties": false
+      }
+    },
+    "illustration": {
+      "type": "object",
+      "properties": {
+        "prompt": { "type": "string" },
+        "at": { "type": "number" },
+        "to": { "type": "number" }
+      },
+      "required": ["prompt", "at", "to"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["title", "preset", "captionStyle", "accent", "takes", "highlights", "graphics", "illustration"],
+  "additionalProperties": false
+}

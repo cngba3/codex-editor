@@ -1,0 +1,10 @@
+.render-button { margin-top: 9px; background: #241b32; }
+.render-button:disabled { opacity: .6; }
+.render-status { margin-top: 14px; padding: 12px; border-radius: 9px; background: #f5f1fa; color: #3a2d49; font-size: 11px; }
+.render-status strong { display: inline-block; margin-right: 8px; }
+.render-status span { color: #8c6caf; }
+.render-status p { margin: 8px 0 0; line-height: 1.5; overflow-wrap: anywhere; color: #a74a4a; }
+.render-progress { height: 5px; margin-top: 10px; border-radius: 4px; background: #e2d8ed; overflow: hidden; }
+.render-progress i { display: block; height: 100%; background: #9470c4; transition: width .3s; }
+.render-status video { display: block; width: 100%; max-height: 360px; margin-top: 12px; border-radius: 8px; background: #111; }
+.render-status a { display: block; margin-top: 10px; color: #7852ad; font-weight: 800; }
