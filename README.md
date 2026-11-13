@@ -28,6 +28,8 @@ Máy chạy job cần Codex CLI đã đăng nhập, `uv` và Python 3.11 (`uv py
 
 Repo gốc có nhiều recipe riêng và công cụ B-roll, matte, meme, kiểm duyệt người trong ảnh. Bản Windows hiện dùng 7 preset của `styles/`; các recipe riêng chưa tự động chạy từ giao diện. Tìm stock B-roll và tạo ảnh AI cần nguồn media hoặc Gemini key, nên bản thử không thể bảo đảm hình minh họa như mọi demo. Nhận dạng tiếng Việt vẫn có thể sai chữ và cần review. Script QA hiện chạy với `--no-stem`, chưa chạy bước render stem SFX riêng.
 
+Studio liệt kê đủ 18 thư mục recipe và biến thể Face RESULT để người dùng thấy mã nguồn đã có. Các mục chưa nối bộ dựng được ghi rõ và chưa thể chọn để render; chỉ 7 preset có nút dựng hoạt động.
+
 Output và dữ liệu job nằm ở `jobs/<id>/`; MP4 truy cập tại `/api/jobs/<id>/output`. Thư mục `jobs/` và `.cache/` không được đưa vào git.
 
 ## Bản đầy đủ và chép lời tiếng Việt

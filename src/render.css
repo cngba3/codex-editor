@@ -8,3 +8,13 @@
 .render-progress i { display: block; height: 100%; background: #9470c4; transition: width .3s; }
 .render-status video { display: block; width: 100%; max-height: 360px; margin-top: 12px; border-radius: 8px; background: #111; }
 .render-status a { display: block; margin-top: 10px; color: #7852ad; font-weight: 800; }
+.recipe-overview { margin-top: 22px; padding-top: 20px; border-top: 1px solid #ebe6f0; }
+.recipe-overview > strong { display: block; font-size: 13px; color: #342943; }
+.recipe-overview > p { margin: 7px 0 15px; color: #77717f; font-size: 11px; line-height: 1.6; }
+.recipe-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.recipe-tile { min-height: 83px; padding: 12px; border: 1px solid #e8e3ec; border-radius: 10px; background: #faf9fc; display: flex; flex-direction: column; gap: 5px; }
+.recipe-tile strong { color: #4d405c; font-size: 11px; }
+.recipe-tile span, .recipe-tile small { color: #9890a0; font-size: 9px; }
+.recipe-tile small { margin-top: auto; }
+.library-card button:disabled { opacity: .65; }
+@media (max-width: 720px) { .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
