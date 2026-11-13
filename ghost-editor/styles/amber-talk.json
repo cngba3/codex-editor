@@ -24,6 +24,7 @@
     { "placement": "lower-right", "font": "Playfair Display", "size": 90, "italic": true, "mixed": true, "align": "right" },
     { "placement": "upper-right", "font": "Inter Tight", "size": 96, "italic": true, "mixed": false, "align": "right" }
   ],
+  "compositionLayouts": ["upper-left", "lower-center", "lower-right", "upper-right"],
   "illustrationLayout": "photo-overlay",
   "sfxProfile": "restrained",
   "music": {

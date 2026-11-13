@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["beats"],
+  "properties": {
+    "beats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode", "text", "at", "to"],
+        "properties": {
+          "mode": { "type": "string", "enum": ["progressive", "black"] },
+          "text": { "type": "string" },
+          "at": { "type": "number" },
+          "to": { "type": "number" }
+        }
+      }
+    }
+  }
+}

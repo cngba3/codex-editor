@@ -716,6 +716,65 @@ for (const b of beatsList) {
       if (b.sfx) beatSfx(b, t0, null, "broll in");
       break;
     }
+    case "type-composition": {
+      const parts = Array.isArray(b.parts) ? b.parts.slice(0, 3) : [];
+      if (!parts.length) break;
+      const head = face ? placer.span(t0, t1) : null;
+      const requestedUpper = String(b.placement || "").startsWith("upper");
+      const upperHasRoom = !head?.seen || head.top > 420;
+      const lowerHasRoom = !head?.seen || head.bottom < 1160;
+      const upper = requestedUpper ? upperHasRoom : !lowerHasRoom && upperHasRoom;
+      const placement = upper ? "upper" : "lower";
+      const right = String(b.placement || "").includes("right");
+      const center = String(b.placement || "").includes("center");
+      const x = right ? 145 : center ? 100 : 72;
+      const width = right ? 780 : center ? 880 : 810;
+      const align = right ? "right" : center ? "center" : "left";
+      const baseY = placement === "upper"
+        ? Math.max(100, Math.min(185, (head?.top ?? 600) - 390))
+        : Math.max(1050, Math.min(1180, (head?.bottom ?? 900) + 110));
+      const sizes = parts.map(part => {
+        const serif = part.role === "serif";
+        const maxSize = serif ? 51 : part.role === "hero" ? 105 : 72;
+        const fit = Math.floor(width / Math.max(1, [...String(part.text || "")].length * (serif ? .52 : .56)));
+        return Math.max(serif ? 31 : 38, Math.min(maxSize, fit));
+      });
+      const heights = parts.map((part, i) => {
+        const charsPerLine = width / (sizes[i] * (part.role === "serif" ? .52 : .56));
+        const lines = Math.max(1, Math.ceil([...String(part.text || "")].length / charsPerLine));
+        return Math.ceil(sizes[i] * 1.1 * lines + 12);
+      });
+      const totalH = heights.reduce((sum, h) => sum + h, 0);
+      const y0 = Math.max(85, Math.min(1490 - totalH, baseY));
+      let offset = 0;
+      const html = parts.map((part, i) => {
+        const role = part.role === "hero" ? "hero" : part.role === "support" ? "support" : "serif";
+        const serif = role === "serif";
+        const phrase = String(part.text || "").trim();
+        const size = sizes[i];
+        const color = role === "hero" ? (brand.accent || "#F4E7A5") : "#fff";
+        const at = Math.max(t0, Math.min(t1 - .07, E(part.at, "composition word")));
+        tl.push(`ft("#${id}-p${i}", { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power2.out" }, ${at});`);
+        const top = y0 + offset;
+        offset += heights[i];
+        return `<div id="${id}-p${i}" style="position:absolute;left:${x}px;top:${top}px;width:${width}px;text-align:${align};font-family:'${serif ? "Playfair Display" : "Inter Tight"}',sans-serif;font-size:${size}px;font-weight:${serif ? 500 : 850};font-style:${serif ? "normal" : "italic"};line-height:1.05;letter-spacing:${serif ? "-1px" : "-3px"};color:${color};text-shadow:0 5px 20px rgba(0,0,0,.72);white-space:normal;overflow-wrap:break-word">${esc(phrase)}</div>`;
+      }).join("");
+      inner = `<div id="${id}-in" class="ov" style="inset:0;z-index:4">${html}</div>`;
+      break;
+    }
+    case "black-flash": {
+      hiddenCaps.push([t0, t1]);
+      const phrase = String(b.text || "").trim();
+      const size = Math.max(66, Math.min(125, Math.floor(840 / Math.max(1, [...phrase].length * .45))));
+      inner = `<div id="${id}-in" class="ov" style="inset:0;width:${W}px;height:${H}px;background:#09090c;z-index:6"><div id="${id}-flash" style="position:absolute;left:90px;top:740px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:italic;line-height:1.02;letter-spacing:-3px;color:${brand.accent || "#F4E7A5"};text-shadow:0 0 36px rgba(244,231,165,.2);overflow-wrap:break-word">${esc(phrase)}</div></div>`;
+      tl.push(`tl.set("#${id}-flash", { opacity: 1 }, ${t0});`);
+      if (dur > 1.0) {
+        const blinkAt = r3(t0 + Math.min(.5, dur * .42));
+        tl.push(`tl.to("#${id}-flash", { opacity: .2, duration: .07 }, ${blinkAt});`);
+        tl.push(`tl.to("#${id}-flash", { opacity: 1, duration: .09 }, ${r3(blinkAt + .07)});`);
+      }
+      break;
+    }
     case "title": {
       // giant display words that pop in one by one on their spoken times (`words: [{text, at}]`), or a whole `text` at once
       const phrase = String(b.text ?? "").trim();
@@ -864,7 +923,7 @@ for (const b of beatsList) {
   const clipMeme = b.type === "broll" || b._timedInside || fluentBeats.has(id) || (b.type === "meme" && memeLib(b.id).meta.clip);
   overlays.push({ html: clipMeme
     ? `<div id="${id}" class="layer"${b._z ? ` style="z-index:${b._z}"` : ""}>${inner}</div>` // the <video> inside is the timed element; a timed wrapper would break it
-    : `<div id="${id}" class="clip layer" data-start="${t0}" data-duration="${dur}" data-track-index="${b._track ?? (b.type === "scene" || b.type === "textfx" ? 4 : inSlot ? 3 : 2)}">${inner}</div>` });
+    : `<div id="${id}" class="clip layer" data-start="${t0}" data-duration="${dur}" data-track-index="${b._track ?? (b.type === "scene" || b.type === "textfx" || b.type === "black-flash" ? 4 : inSlot ? 3 : 2)}">${inner}</div>` });
 }
 
 // split-screen B-roll: slide the speaker plate down once per run of adjacent split beats

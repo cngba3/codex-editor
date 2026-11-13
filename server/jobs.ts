@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { randomUUID } from 'node:crypto'
 import ffmpeg from 'ffmpeg-static'
 import ffprobe from 'ffprobe-static'
+import { buildAmberBeats, type AmberCandidate, type TimedSegment } from './amber-layout'
 
 type Job = { id: string; stage: string; progress: number; status: 'running' | 'done' | 'error'; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; asrModel?: string }
 const root = process.cwd()
@@ -16,6 +17,7 @@ const renderCli = join(root, 'node_modules', 'hyperframes', 'bin', 'hyperframes.
 const schema = join(root, 'server', 'plan-schema.json')
 const reviewSchema = join(root, 'server', 'review-schema.json')
 const referenceSchema = join(root, 'server', 'reference-schema.json')
+const amberSchema = join(root, 'server', 'amber-schema.json')
 const jobs = new Map<string, Job>()
 let busy = false
 const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk'])
@@ -153,7 +155,7 @@ async function processJob(job: Job, source: string, reference: string | undefine
     job.stage = 'Nhận dạng lời nói'; job.progress = 15
     const wordsPath = join(build, 'words.whisper.json')
     if (!existsSync(wordsPath)) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(notes)])
-    const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: { start: number; end: number; text: string }[] }
+    const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: TimedSegment[] }
     job.asrModel = words.model
     if (!words.segments.length) throw new Error('Không tìm thấy lời nói để dựng Reel.')
     job.stage = 'Codex chọn đoạn'; job.progress = 35
@@ -177,13 +179,29 @@ async function processJob(job: Job, source: string, reference: string | undefine
     await run(process.execPath, [join(root, 'server', 'restore-media.mjs'), 'face-model', 'whoosh-cine', 'impact-1', 'impact-2', 'whoosh-1', 'whoosh-2', 'whoosh-3', 'pop-1', 'pop-2', 'pop-3', ...(musicId ? [musicId] : [])])
     job.stage = 'Theo dõi khuôn mặt'; job.progress = 62
     if (!existsSync(join(build, 'face.json'))) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'opencv-python-headless', 'python', join(ghost, 'scripts', 'face_track.py'), talk, '--out', join(build, 'face.json')])
-    const amberStyle = job.style === 'amber-talk' ? JSON.parse(readFileSync(join(ghost, 'styles', 'amber-talk.json'), 'utf8')) as { titleVariants: Record<string, unknown>[]; illustrationLayout: string } : null
-    const graphics = (plan.graphics || []).filter(g => Number.isFinite(g.at) && Number.isFinite(g.to) && g.to > g.at && g.to - g.at <= 2.5 && g.text.trim() && takes.some(t => g.at >= t.a && g.to <= t.b))
-      .slice(0, amberStyle ? 4 : 3).map((g, i) => amberStyle
-        ? { type: 'title', at: g.at, to: g.to, text: g.text.slice(0, 40), ...amberStyle.titleVariants[i % amberStyle.titleVariants.length], weight: 850, upper: false, color: '#F4E7A5', anim: 'blur' }
-        : g.kind === 'scene'
-        ? { type: 'scene', kind: 'word', at: g.at, to: g.to, text: g.text.slice(0, 40), bg: 'accent' }
-        : { type: 'big', at: g.at, to: g.to, text: g.text.slice(0, 40) })
+    const amberStyle = job.style === 'amber-talk' ? JSON.parse(readFileSync(join(ghost, 'styles', 'amber-talk.json'), 'utf8')) as { compositionLayouts: string[]; illustrationLayout: string } : null
+    let graphics: Record<string, unknown>[]
+    if (amberStyle) {
+      job.stage = 'Codex đặt chữ theo lời nói'; job.progress = 64
+      const amberPath = join(build, 'amber-plan.json')
+      const transcript = words.segments.map(s => `[${s.start.toFixed(2)}-${s.end.toFixed(2)}] ${s.text}`).join('\n')
+      const proposed = plan.illustration?.prompt?.trim() ? `${plan.illustration.at}-${plan.illustration.to}` : 'none'
+      const prompt = `You are planning reusable typography for a Vietnamese talking-head reel. Return JSON matching the schema. Choose 5-8 separate spoken phrases spread across the selected takes, 2-8 words each, each 0.6-3.0 seconds. Use exact words from the transcript; preserve speech order. For each phrase, give source-video start/end times within ONE take; the renderer will align each fragment to word timestamps and vary font, scale, color and safe position automatically. Use mode progressive for most phrases. Use exactly ONE mode black on a short rhetorical pivot: all words appear at once on a dark full-screen frame, then blink briefly. Avoid overlap between beats and illustration time ${proposed}. Do not invent text or put text over a removed take. Takes: ${JSON.stringify(takes)}. Transcript:\n${transcript}`
+      let candidates: AmberCandidate[] = []
+      try {
+        await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', amberSchema, '-o', amberPath, '-'], { input: prompt })
+        candidates = (JSON.parse(readFileSync(amberPath, 'utf8')) as { beats: AmberCandidate[] }).beats || []
+      } catch (error) {
+        job.warning = [job.warning, `Amber plan: ${error instanceof Error ? error.message.slice(-180) : 'fallback'}`].filter(Boolean).join(' ')
+        candidates = (plan.graphics || []).map(g => ({ mode: g.kind === 'scene' ? 'black' : 'progressive', text: g.text, at: g.at, to: g.to }))
+      }
+      graphics = buildAmberBeats(candidates, words.segments, takes, amberStyle.compositionLayouts || [], plan.illustration)
+    } else {
+      graphics = (plan.graphics || []).filter(g => Number.isFinite(g.at) && Number.isFinite(g.to) && g.to > g.at && g.to - g.at <= 2.5 && g.text.trim() && takes.some(t => g.at >= t.a && g.to <= t.b))
+        .slice(0, 3).map(g => g.kind === 'scene'
+          ? { type: 'scene', kind: 'word', at: g.at, to: g.to, text: g.text.slice(0, 40), bg: 'accent' }
+          : { type: 'big', at: g.at, to: g.to, text: g.text.slice(0, 40) })
+    }
     const beats: Record<string, unknown>[] = [...graphics]
     const illustration = plan.illustration
     if (illustration?.prompt?.trim() && Number.isFinite(illustration.at) && Number.isFinite(illustration.to) && illustration.to - illustration.at >= 1 && illustration.to - illustration.at <= 3 && takes.some(t => illustration.at >= t.a && illustration.to <= t.b)) {
