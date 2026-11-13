@@ -2,8 +2,8 @@
   "type": "object",
   "properties": {
     "title": { "type": "string" },
-    "preset": { "type": "string", "enum": ["clean", "editorial", "meme", "cinematic", "launch", "kinetic", "pop"] },
-    "captionStyle": { "type": "string", "enum": ["clean", "editorial", "hype", "explosive", "line-focus", "neo-minimal", "karaoke-fill", "highlighter"] },
+    "preset": { "type": "string", "enum": ["clean", "editorial", "meme", "cinematic", "launch", "kinetic", "pop", "amber-talk"] },
+    "captionStyle": { "type": "string", "enum": ["clean", "editorial", "hype", "explosive", "line-focus", "neo-minimal", "karaoke-fill", "highlighter", "mini"] },
     "accent": { "type": "string" },
     "takes": {
       "type": "array",

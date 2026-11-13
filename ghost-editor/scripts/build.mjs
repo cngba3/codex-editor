@@ -718,17 +718,39 @@ for (const b of beatsList) {
     }
     case "title": {
       // giant display words that pop in one by one on their spoken times (`words: [{text, at}]`), or a whole `text` at once
-      const ws = b.words ?? [{ text: b.text, at: b.at }];
+      const phrase = String(b.text ?? "").trim();
+      const parts = phrase.split(/\s+/);
+      const ws = b.words ?? (b.mixed && parts.length > 1
+        ? [{ text: parts[0], at: b.at, small: true }, { text: parts.slice(1).join(" "), at: b.at }]
+        : [{ text: b.text, at: b.at }]);
       const pop = (b.anim ?? "pop") === "pop";
       const spans = ws.map((w, i) => {
         const at = E(w.at, "title word");
         tl.push(pop
           ? `ft("#${id}-w${i}", { autoAlpha: 0, scale: 0.8 }, { autoAlpha: 1, scale: 1, duration: 0.16, ease: "back.out(2)" }, ${at});`
           : `ft("#${id}-w${i}", { autoAlpha: 0, scale: 0.82, filter: "blur(14px)" }, { autoAlpha: 1, scale: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out" }, ${at});`);
-        return `<span id="${id}-w${i}" style="display:inline-block;margin:0 0.14em">${esc(w.text)}</span>`;
+        return `<span id="${id}-w${i}" style="display:inline-block;max-width:100%;white-space:normal;margin:0 0.14em;${w.small ? `font-family:'Playfair Display',serif;font-size:.55em;font-style:normal;font-weight:500;color:#fff;vertical-align:baseline;` : ""}">${esc(w.text)}</span>`;
       }).join(" ");
-      inner = `<div id="${id}-in" class="ov title" style="left:${b.x ?? 60}px;right:${b.x ?? 60}px;top:${b.y ?? 190}px;z-index:4;text-align:${b.align ?? "center"};font-family:'${b.font ?? brand.font ?? "Inter"}', Inter, sans-serif;font-size:${b.size ?? 120}px;font-weight:${b.weight ?? 900};line-height:0.98;letter-spacing:${b.tracking ?? "-2px"};text-transform:uppercase;color:${b.color ?? "#fff"};text-shadow:${b.glow ? `0 0 28px ${b.glow}, ` : ""}0 6px 24px rgba(0,0,0,.45)">${spans}</div>`;
+      const head = face ? placer.span(t0, t1) : null;
+      const lower = head?.seen ? Math.min(1230, Math.max(1050, head.bottom + 140)) : 1110;
+      const upper = head?.seen ? Math.max(100, Math.min(260, head.top - 210)) : 170;
+      const placement = b.placement ?? "";
+      const x = b.x ?? (placement.includes("right") ? 340 : 70);
+      const right = b.right ?? (placement.includes("left") ? 300 : 70);
+      const y = b.y ?? (placement.startsWith("upper") ? upper : placement.startsWith("lower") ? lower : 190);
+      const width = W - x - right;
+      const upperCap = placement.startsWith("upper") && [...phrase].length > 20 ? 64 : Infinity;
+      const size = Math.max(56, Math.min(b.size ?? 120, upperCap, Math.floor(width * 2 / Math.max(1, [...phrase].length * 0.55))));
+      inner = `<div id="${id}-in" class="ov title" style="left:${x}px;right:${right}px;top:${y}px;z-index:4;text-align:${b.align ?? "center"};font-family:'${b.font ?? brand.font ?? "Inter"}', Inter, sans-serif;font-size:${size}px;font-weight:${b.weight ?? 900};font-style:${b.italic ? "italic" : "normal"};line-height:0.98;letter-spacing:${b.tracking ?? "-2px"};text-transform:${b.upper === false ? "none" : "uppercase"};color:${b.color ?? "#fff"};text-shadow:${b.glow ? `0 0 28px ${b.glow}, ` : ""}0 6px 24px rgba(0,0,0,.45)">${spans}</div>`;
       if (b.sfx) beatSfx(b, t0, null, "title");
+      break;
+    }
+    case "photo": {
+      const src = userAsset(b.src);
+      const w = b.w ?? 740, h = b.h ?? 380;
+      const x = b.x ?? Math.round((W - w) / 2), y = b.y ?? 900;
+      inner = `<div id="${id}-in" class="ov" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;padding:12px;background:rgba(255,255,255,.82);border-radius:28px;box-shadow:0 20px 60px rgba(0,0,0,.38);overflow:hidden;z-index:4"><img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:18px;display:block"/></div>`;
+      tl.push(enter(`#${id}-in`, t0, "slide"));
       break;
     }
     case "meme": {
@@ -937,7 +959,7 @@ const capHtml = chest ? chest.html : cap.style === "none" || edit || tpl ? "" : 
 const cyr = /[\u0400-\u04FF]/.test(JSON.stringify(spec.beats || []) + words.map((w) => w.word).join(" "));
 const UI_FONT = brand.font || (cyr ? "Inter" : "Geist");
 const capCss = cap.style === "mini"
-  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: #fff; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8); max-width: 940px; }`
+  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: #fff; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} ${cap.background ? `background:${cap.background};padding:10px 18px;border-radius:12px;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8); max-width: 940px; }`
   : cap.style === "clean"
   ? `.cap-group { font-family: ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? brand.capSize}px; font-weight: 800; color: #fff; letter-spacing: -1px; text-shadow: 0 4px 18px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.6); }`
   : cap.style === "pill"
@@ -960,12 +982,13 @@ if (spec.music) {
 
 // ---------- write ----------
 const FONT_NAMES = { "playfair-display": "Playfair Display", "jetbrains-mono": "JetBrains Mono", "geist-mono": "GeistMono" };
-const RANGES = { latin: "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD", cyrillic: "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116" };
-const fontFaces = fs.readdirSync(path.join(A, "fonts")).filter((f) => /-(latin|cyrillic)(-italic)?\.woff2$/.test(f)).map((f) => {
-  const m = /^(.*)-(latin|cyrillic)(-italic)?\.woff2$/.exec(f);
+const RANGES = { latin: "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD", cyrillic: "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116", vietnamese: "U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB" };
+const fontFaces = fs.readdirSync(path.join(A, "fonts")).filter((f) => /-(latin|cyrillic|vietnamese)(-italic)?\.woff2$/.test(f)).map((f) => {
+  const m = /^(.*)-(latin|cyrillic|vietnamese)(-italic)?\.woff2$/.exec(f);
   const fam = FONT_NAMES[m[1]] || m[1].split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
   if (["Geist", "Inter", "Montserrat"].includes(fam)) return "";
-  return `@font-face { font-family: "${fam}"; src: url(assets/fonts/${f}) format("woff2"); font-weight: 100 900;${m[3] ? " font-style: italic;" : ""} unicode-range: ${RANGES[m[2]]}; }`;
+  const range = m[1] === "playfair-display" && m[2] === "latin" ? `${RANGES.latin}, ${RANGES.vietnamese}` : RANGES[m[2]];
+  return `@font-face { font-family: "${fam}"; src: url(assets/fonts/${f}) format("woff2"); font-weight: 100 900;${m[3] ? " font-style: italic;" : ""} unicode-range: ${range}; }`;
 }).join("\n  ");
 const look = spec.look || {};
 if (look.film) { delete look.grade; delete look.grain; } // the graded plate already carries the stock's colour and grain

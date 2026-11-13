@@ -1,6 +1,7 @@
 export type EditStyle = { id: string; name: string; category: string; description: string; visual: string; tags: string[] }
 
 export const editStyles: EditStyle[] = [
+  { id: 'amber-talk', name: 'Amber Talk', category: 'Style từ template-1', description: 'Talking head ấm, phụ đề trắng nhỏ, từ khóa vàng kem nghiêng, zoom nhẹ và cảnh minh họa ngắn.', visual: 'cinematic', tags: ['Video mẫu', 'Talking head'] },
   { id: 'clean-os', name: 'Clean OS', category: 'Talking head', description: 'Tối giản kiểu Apple: chữ sắc nét, giao diện điện thoại và các cú zoom gọn.', visual: 'clean', tags: ['Tối giản', 'Công nghệ'] },
   { id: 'result-podcast', name: 'RESULT', category: 'Talking head', description: 'Không khí podcast ấm với thẻ navy, ảnh polaroid và ghi chú viết tay.', visual: 'result', tags: ['Kể chuyện', 'Ấm áp'] },
   { id: 'face-result', name: 'Face RESULT', category: 'Biến thể RESULT', description: 'Giữ khuôn mặt trong khung hình, bố trí giấy, ảnh và chữ quanh người nói.', visual: 'face', tags: ['Kể chuyện', 'Chân dung'] },

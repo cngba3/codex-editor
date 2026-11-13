@@ -6,7 +6,7 @@ Every bundled font is under the SIL Open Font License 1.1; each family's licence
 |---|---|---|---|
 | Geist, Geist Mono | `geist-latin`, `geist-mono-latin` | Google Fonts (Vercel's Geist) | none |
 | Inter | `inter-latin`, `inter-cyrillic` | Google Fonts | none |
-| Inter Tight | `inter-tight-*` (4, incl. italic) | Google Fonts | none |
+| Inter Tight | `inter-tight-*` (Latin, Cyrillic, Vietnamese, incl. italic) | Google Fonts; Vietnamese WOFF2 converted from the upstream unmodified variable TTF | none |
 | JetBrains Mono | `jetbrains-mono-*` | Google Fonts | none |
 | Montserrat | `montserrat-*` | Google Fonts | none |
 | Oswald | `oswald-*` | Google Fonts | none |

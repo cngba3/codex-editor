@@ -1,0 +1,37 @@
+{
+  "_about": "Derived from template-1.mp4: warm talking head, restrained push-ins, small white subtitles, short cream-yellow italic keyword headlines, occasional illustrative cutaway.",
+  "brand": {
+    "accent": "#F4E7A5",
+    "accentDark": "#D9C77C",
+    "ink": "#18202A",
+    "capSize": 40,
+    "font": "Inter Tight"
+  },
+  "captions": {
+    "style": "mini",
+    "group": 5,
+    "y": 1380,
+    "font": "Inter Tight",
+    "size": 48,
+    "weight": 600,
+    "tracking": "0px",
+    "stroke": 1,
+    "background": "rgba(11, 14, 18, 0.52)"
+  },
+  "titleVariants": [
+    { "placement": "upper-left", "font": "Inter Tight", "size": 108, "italic": true, "mixed": true, "align": "left" },
+    { "placement": "lower-center", "font": "Inter Tight", "size": 100, "italic": true, "mixed": false, "align": "center" },
+    { "placement": "lower-right", "font": "Playfair Display", "size": 90, "italic": true, "mixed": true, "align": "right" },
+    { "placement": "upper-right", "font": "Inter Tight", "size": 96, "italic": true, "mixed": false, "align": "right" }
+  ],
+  "illustrationLayout": "photo-overlay",
+  "sfxProfile": "restrained",
+  "music": {
+    "id": "auto",
+    "db": -26
+  },
+  "look": {
+    "grain": 0.025,
+    "vignette": 0.18
+  }
+}

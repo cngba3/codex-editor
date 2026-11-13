@@ -18,7 +18,7 @@ const reviewSchema = join(root, 'server', 'review-schema.json')
 const referenceSchema = join(root, 'server', 'reference-schema.json')
 const jobs = new Map<string, Job>()
 let busy = false
-const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop'])
+const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk'])
 const executable = join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')
 const commandEnv = { ...process.env, PATH: [dirname(ffmpeg!), dirname(ffprobe.path), process.env.PATH].join(delimiter), HYPERFRAMES_FFMPEG_PATH: ffmpeg!, HYPERFRAMES_CLI_PATH: renderCli, PYTHONUTF8: '1' }
 
@@ -56,7 +56,7 @@ function run(command: string, args: string[], options: { cwd?: string; input?: s
 }
 
 async function upload(request: IncomingMessage, directory: string) {
-  return new Promise<{ source: string; reference?: string; style: string; notes: string; title: string }>((resolveUpload, reject) => {
+  return new Promise<{ source: string; reference?: string; style: string; notes: string; title: string; kind: 'preview' | 'full' }>((resolveUpload, reject) => {
     const files: Record<string, string> = {}
     const fields: Record<string, string> = {}
     const writes: Promise<void>[] = []
@@ -75,7 +75,7 @@ async function upload(request: IncomingMessage, directory: string) {
       try {
         await Promise.all(writes)
         if (failed || !files.source) throw new Error('Video nguồn thiếu hoặc vượt quá 500 MB.')
-        resolveUpload({ source: files.source, reference: files.reference, style: fields.style || 'clean', notes: fields.notes || '', title: fields.title || 'Reel preview' })
+        resolveUpload({ source: files.source, reference: files.reference, style: fields.style || 'clean', notes: fields.notes || '', title: fields.title || 'Reel preview', kind: fields.kind === 'full' ? 'full' : 'preview' })
       } catch (error) { reject(error) }
     })
     request.pipe(parser)
@@ -152,14 +152,15 @@ async function processJob(job: Job, source: string, reference: string | undefine
     }
     job.stage = 'Nhận dạng lời nói'; job.progress = 15
     const wordsPath = join(build, 'words.whisper.json')
-    await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(notes)])
+    if (!existsSync(wordsPath)) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(notes)])
     const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: { start: number; end: number; text: string }[] }
     job.asrModel = words.model
     if (!words.segments.length) throw new Error('Không tìm thấy lời nói để dựng Reel.')
     job.stage = 'Codex chọn đoạn'; job.progress = 35
     const planPath = join(build, 'codex-plan.json')
     const illustrationRule = '\nIllustration: đề xuất một ảnh minh họa cho ý chính, prompt tiếng Anh cụ thể, không chữ, không logo, không người thật nhận diện được. at/to dài 1.5-2.5 giây, nằm hoàn toàn trong một take được chọn và không chồng lên graphics. Nếu không cần ảnh, đặt prompt rỗng và at=to=0.'
-    await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, notes, job.style, referenceLog) : planPrompt(words, seconds, notes, job.style, referenceLog)) + illustrationRule })
+    const styleRule = job.style === 'amber-talk' ? '\nRiêng style amber-talk theo video mẫu template-1: preset phải là amber-talk, captionStyle mini, accent #F4E7A5. Giữ mặt người nói và phụ đề tiếng Việt rõ ở dưới. Chọn 3-4 graphics là những cụm ĐÚNG lời nói, một cụm trong 4 giây đầu rồi rải các cụm còn lại xuyên suốt; không bịa câu chữ. Bộ dựng sẽ phối serif trắng nhỏ, sans vàng kem đậm/nghiêng và thay đổi vị trí theo khuôn mặt. Ưu tiên cắt thẳng và zoom nhẹ, không dùng thẻ chữ nền đen.' : ''
+    await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, notes, job.style, referenceLog) : planPrompt(words, seconds, notes, job.style, referenceLog)) + illustrationRule + styleRule })
     const plan = JSON.parse(readFileSync(planPath, 'utf8')) as { title: string; preset: string; captionStyle: string; accent: string; takes: { a: number; b: number }[]; highlights: string[]; graphics: { kind: 'big' | 'scene'; text: string; at: number; to: number }[]; illustration: { prompt: string; at: number; to: number } }
     if (reference) job.style = supported.has(plan.preset) ? plan.preset : 'editorial'
     const takes = plan.takes.filter(t => Number.isFinite(t.a) && Number.isFinite(t.b) && t.a >= 0 && t.b <= seconds + .1 && t.b - t.a > .3).sort((a, b) => a.a - b.a)
@@ -169,33 +170,46 @@ async function processJob(job: Job, source: string, reference: string | undefine
     if (!takes.length || total < minimum || total > maximum || takes.some((t, i) => i > 0 && t.a < takes[i - 1].b)) throw new Error('Codex trả về kế hoạch cắt chưa hợp lệ.')
     job.stage = 'Chuẩn bị video'; job.progress = 50
     const talk = join(assets, 'talk.mp4')
-    await run(ffmpeg!, ['-v', 'error', '-y', '-i', source, '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '160k', talk])
+    if (!existsSync(talk)) await run(ffmpeg!, ['-v', 'error', '-y', '-i', source, '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '160k', talk])
     job.stage = 'Khôi phục thư viện ghost-editor'; job.progress = 57
     const music = JSON.parse(readFileSync(join(ghost, 'library', 'music', 'manifest.json'), 'utf8')) as Record<string, { styles?: string[] }>
     const musicId = Object.keys(music).find(id => music[id].styles?.includes(job.style))
     await run(process.execPath, [join(root, 'server', 'restore-media.mjs'), 'face-model', 'whoosh-cine', 'impact-1', 'impact-2', 'whoosh-1', 'whoosh-2', 'whoosh-3', 'pop-1', 'pop-2', 'pop-3', ...(musicId ? [musicId] : [])])
     job.stage = 'Theo dõi khuôn mặt'; job.progress = 62
-    await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'opencv-python-headless', 'python', join(ghost, 'scripts', 'face_track.py'), talk, '--out', join(build, 'face.json')])
+    if (!existsSync(join(build, 'face.json'))) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'opencv-python-headless', 'python', join(ghost, 'scripts', 'face_track.py'), talk, '--out', join(build, 'face.json')])
+    const amberStyle = job.style === 'amber-talk' ? JSON.parse(readFileSync(join(ghost, 'styles', 'amber-talk.json'), 'utf8')) as { titleVariants: Record<string, unknown>[]; illustrationLayout: string } : null
     const graphics = (plan.graphics || []).filter(g => Number.isFinite(g.at) && Number.isFinite(g.to) && g.to > g.at && g.to - g.at <= 2.5 && g.text.trim() && takes.some(t => g.at >= t.a && g.to <= t.b))
-      .slice(0, 3).map(g => g.kind === 'scene'
+      .slice(0, amberStyle ? 4 : 3).map((g, i) => amberStyle
+        ? { type: 'title', at: g.at, to: g.to, text: g.text.slice(0, 40), ...amberStyle.titleVariants[i % amberStyle.titleVariants.length], weight: 850, upper: false, color: '#F4E7A5', anim: 'blur' }
+        : g.kind === 'scene'
         ? { type: 'scene', kind: 'word', at: g.at, to: g.to, text: g.text.slice(0, 40), bg: 'accent' }
         : { type: 'big', at: g.at, to: g.to, text: g.text.slice(0, 40) })
     const beats: Record<string, unknown>[] = [...graphics]
     const illustration = plan.illustration
     if (illustration?.prompt?.trim() && Number.isFinite(illustration.at) && Number.isFinite(illustration.to) && illustration.to - illustration.at >= 1 && illustration.to - illustration.at <= 3 && takes.some(t => illustration.at >= t.a && illustration.to <= t.b)) {
       job.stage = 'Tạo minh họa vector'; job.progress = 66
-      writeFileSync(join(assets, 'illustration.svg'), vectorIllustration(illustration.prompt, plan.accent), 'utf8')
-      beats.push({ type: 'scene', kind: 'image', at: illustration.at, to: illustration.to, src: 'assets/illustration.svg', captions: false, zoom: [1, 1.08], in: 'wipe' })
+      const generatedImage = join(assets, 'illustration-imagegen.png')
+      if (existsSync(generatedImage)) {
+        beats.push(amberStyle?.illustrationLayout === 'photo-overlay'
+          ? { type: 'photo', at: illustration.at, to: illustration.to, src: 'assets/illustration-imagegen.png', w: 740, h: 380, y: 900 }
+          : { type: 'scene', kind: 'image', at: illustration.at, to: illustration.to, src: 'assets/illustration-imagegen.png', captions: false, zoom: [1, 1.08], in: 'wipe' })
+      } else {
+        writeFileSync(join(assets, 'illustration.svg'), vectorIllustration(illustration.prompt, plan.accent), 'utf8')
+        beats.push(amberStyle?.illustrationLayout === 'photo-overlay'
+          ? { type: 'photo', at: illustration.at, to: illustration.to, src: 'assets/illustration.svg', w: 740, h: 380, y: 900 }
+          : { type: 'scene', kind: 'image', at: illustration.at, to: illustration.to, src: 'assets/illustration.svg', captions: false, zoom: [1, 1.08], in: 'wipe' })
+      }
     }
-    const spec: Record<string, unknown> = { source: 'assets/talk.mp4', words: 'build/words.whisper.json', fps: 30, outro: 0, takes, style: job.style, beats, captions: { highlight: plan.highlights || [] }, zoom: { snaps: takes.map((t, i) => [t.a, i % 2 ? 1 : 1.05]) }, title: plan.title || job.title, sfxProfile: 'standard' }
-    if (takes.length > 1) spec.transitions = takes.slice(0, -1).map((_, i) => ({ after: i, type: 'dissolve', dur: .2 }))
+    const spec: Record<string, unknown> = { source: 'assets/talk.mp4', words: 'build/words.whisper.json', fps: 30, outro: 0, takes, style: job.style, beats, captions: { highlight: plan.highlights || [] }, zoom: { snaps: takes.map((t, i) => [t.a, i % 2 ? 1 : 1.05]) }, title: plan.title || job.title, sfxProfile: job.style === 'amber-talk' ? 'restrained' : 'standard' }
+    if (job.style === 'amber-talk') spec.zoom = { snaps: takes.map((t, i) => [t.a, i % 2 ? 1.08 : 1]) }
+    if (takes.length > 1 && job.style !== 'amber-talk') spec.transitions = takes.slice(0, -1).map((_, i) => ({ after: i, type: 'dissolve', dur: .2 }))
     if (reference) {
       const captionStyles = new Set(['clean', 'editorial', 'hype', 'explosive', 'line-focus', 'neo-minimal', 'karaoke-fill', 'highlighter'])
       spec.captions = { style: captionStyles.has(plan.captionStyle) ? plan.captionStyle : 'editorial', highlight: plan.highlights || [] }
       if (/^#[0-9a-fA-F]{6}$/.test(plan.accent)) spec.brand = { accent: plan.accent }
     }
     writeFileSync(join(directory, 'reel.json'), JSON.stringify(spec, null, 2), 'utf8')
-    if (takes.length > 1) {
+    if (takes.length > 1 && spec.transitions) {
       job.stage = 'Tạo chuyển cảnh'; job.progress = 68
       await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'numpy', '--with', 'opencv-python-headless', 'python', join(ghost, 'scripts', 'transitions.py'), 'reel', directory])
     }
@@ -256,6 +270,25 @@ function findJob(id: string): Job | undefined {
 
 export async function jobsApi(request: IncomingMessage, response: ServerResponse, next: () => void) {
   const path = request.url?.split('?')[0] || ''
+  const retryMatch = path.match(/^\/api\/jobs\/([a-f0-9-]+)\/retry$/)
+  if (retryMatch && request.method === 'POST') {
+    if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    if (busy) { json(response, 409, { error: 'Một video khác đang được dựng.' }); return }
+    const previous = findJob(retryMatch[1])
+    const directory = join(jobsRoot, retryMatch[1])
+    const source = join(directory, 'source.mp4')
+    if (!previous || previous.status !== 'error' || !existsSync(source)) { json(response, 404, { error: 'Không tìm thấy job lỗi có video nguồn.' }); return }
+    busy = true
+    const job: Job = { ...previous, stage: 'Chạy lại bộ dựng', progress: 1, status: 'running' }
+    delete job.error
+    delete job.warning
+    jobs.set(job.id, job)
+    writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
+    json(response, 202, job)
+    const reference = join(directory, 'reference.mp4')
+    void processJob(job, source, existsSync(reference) ? reference : undefined, job.notes || '')
+    return
+  }
   const fullMatch = path.match(/^\/api\/jobs\/([a-f0-9-]+)\/full$/)
   if (fullMatch && request.method === 'POST') {
     if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
@@ -274,6 +307,12 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
       const parentReference = join(parentDir, 'reference.mp4')
       const reference = existsSync(parentReference) ? join(directory, 'reference.mp4') : undefined
       if (reference) copyFileSync(parentReference, reference)
+      mkdirSync(join(directory, 'build'), { recursive: true })
+      mkdirSync(join(directory, 'assets'), { recursive: true })
+      for (const relative of ['build/words.whisper.json', 'build/face.json', 'assets/talk.mp4', 'assets/talk-matte.webm', 'assets/illustration-imagegen.png']) {
+        const cached = join(parentDir, relative)
+        if (existsSync(cached)) copyFileSync(cached, join(directory, relative))
+      }
       const job: Job = { id, stage: 'Đã nhận video', progress: 1, status: 'running', title: parent.title, style: parent.style, kind: 'full', parentId: parent.id, notes: parent.notes || '' }
       jobs.set(id, job)
       json(response, 202, job)
@@ -302,8 +341,8 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
     try {
       const data = await upload(request, directory)
       if (data.style === 'reference' && !data.reference) throw new Error('Hãy thêm video mẫu trước khi dựng.')
-      if (data.style !== 'reference' && !supported.has(data.style)) throw new Error('Bản dựng thử hiện hỗ trợ 7 preset: clean, editorial, meme, cinematic, launch, kinetic, pop.')
-      const job: Job = { id, stage: 'Đã nhận video', progress: 1, status: 'running', title: data.title, style: data.style, kind: 'preview', notes: data.notes }
+      if (data.style !== 'reference' && !supported.has(data.style)) throw new Error('Style đã chọn chưa được nối với bộ dựng.')
+      const job: Job = { id, stage: 'Đã nhận video', progress: 1, status: 'running', title: data.title, style: data.style, kind: data.kind, notes: data.notes }
       jobs.set(id, job)
       json(response, 202, job)
       void processJob(job, data.source, data.reference, data.notes)
