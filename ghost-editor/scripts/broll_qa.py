@@ -1318,7 +1318,7 @@ def analyse(video, project=None, profile="talking-head", words=None, allow_hold=
         for l in comp["layers"]:
             if l["kind"] in ("sticker", "backdrop") or l["still"]:
                 continue
-            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=pts_time",
+            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=best_effort_timestamp_time",
                                 "-of", "csv=p=0", l["src"]], capture_output=True, text=True)
             kt = sorted(float(x.strip(",")) for x in r.stdout.split() if x.strip(","))
             gap = max(np.diff(kt + [l["info"]["dur"]])) if kt else l["info"]["dur"]

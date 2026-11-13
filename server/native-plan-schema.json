@@ -1,0 +1,17 @@
+{
+  "type":"object","additionalProperties":false,
+  "required":["rationale","options_json","build_json","operations"],
+  "properties":{
+    "rationale":{"type":"string"},
+    "options_json":{"type":"string"},
+    "build_json":{"type":"string"},
+    "operations":{"type":"array","items":{
+      "type":"object","additionalProperties":false,
+      "required":["target","method","args_json","kwargs_json","result"],
+      "properties":{
+        "target":{"type":"string"},"method":{"type":"string"},
+        "args_json":{"type":"string"},"kwargs_json":{"type":"string"},"result":{"type":"string"}
+      }
+    }}
+  }
+}

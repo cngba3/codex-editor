@@ -63,7 +63,7 @@ function splitParts(words: TimedWord[], variant: number): AmberPart[] {
   ]
 }
 
-export function buildAmberBeats(candidates: AmberCandidate[], segments: TimedSegment[], takes: Take[], layouts: string[], illustration?: { at: number; to: number }): AmberBeat[] {
+export function buildAmberBeats(candidates: AmberCandidate[], segments: TimedSegment[], takes: Take[], layouts: string[], illustration?: { at: number; to: number }, options: { blackFlash?: boolean } = {}): AmberBeat[] {
   const source = segments.flatMap(segment => segment.words || []).filter(word => takes.some(take => word.start >= take.a - 0.05 && word.end <= take.b + 0.05))
   const kept: { candidate: AmberCandidate; words: TimedWord[]; take: Take }[] = []
   for (const candidate of [...candidates].sort((a, b) => a.at - b.at)) {
@@ -77,8 +77,8 @@ export function buildAmberBeats(candidates: AmberCandidate[], segments: TimedSeg
     if (kept.length >= 8) break
   }
   if (!kept.length) return []
-  let blackIndex = kept.findIndex(item => item.candidate.mode === 'black')
-  if (blackIndex < 0 && kept.length >= 4) blackIndex = Math.floor(kept.length / 2)
+  let blackIndex = options.blackFlash === false ? -1 : kept.findIndex(item => item.candidate.mode === 'black')
+  if (options.blackFlash !== false && blackIndex < 0 && kept.length >= 4) blackIndex = Math.floor(kept.length / 2)
   const beats = kept.map((item, i): AmberBeat => {
     const at = Math.max(item.take.a, Math.min(item.candidate.at, item.words[0].start))
     const to = Math.min(item.take.b, Math.max(item.candidate.to, item.words.at(-1)!.end + 0.16))

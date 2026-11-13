@@ -34,7 +34,9 @@ for (const id of ids) {
     const item = music[id]
     const output = path.join(root, 'music', item.file)
     if (fs.existsSync(output)) continue
-    command('curl.exe', ['-fLsS', '--retry', '10', '--retry-all-errors', '--retry-delay', '2', '-o', output, item.url])
+    const url = item.url || item.source?.match(/https:\/\/assets\.mixkit\.co\/music\/\d+\/\d+\.mp3/)?.[0]
+    if (!url) throw new Error(`Music ${id} has no downloadable source in its manifest`)
+    command('curl.exe', ['-fLsS', '--retry', '3', '--retry-all-errors', '--retry-delay', '2', '-o', output, url])
     console.log(`restored music ${id}`)
   } else throw new Error(`Unknown media ${id}`)
 }

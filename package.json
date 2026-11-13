@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "setup:model": "node scripts/setup-model.mjs"
+    "setup:model": "node scripts/setup-model.mjs",
+    "test:recipes": "tsx --test scripts/test-recipes.ts"
   },
   "dependencies": {
     "busboy": "^1.6.0",
@@ -15,6 +16,7 @@
     "ffprobe-static": "^3.1.0",
     "hyperframes": "^0.8.159",
     "lucide-react": "^0.468.0",
+    "puppeteer-core": "^25.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -24,6 +26,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }

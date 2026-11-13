@@ -20,4 +20,7 @@ os.environ.setdefault("HYPERFRAMES_FFMPEG_PATH", os.path.join(HERE, "hf_ffmpeg.s
 
 
 def hf(*args):
+    local_cli = os.environ.get("HYPERFRAMES_CLI_PATH")
+    if local_cli:
+        return ["node", local_cli, *args]
     return ["npx", "-y", f"hyperframes@{VERSION}", *args]

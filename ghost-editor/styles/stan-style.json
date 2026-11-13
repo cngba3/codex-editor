@@ -1,0 +1,7 @@
+{
+  "_about":"Stan Style uses the original recipes/stan-style SYSTEM and scripts/lib/stan.mjs. Real screen recordings required.",
+  "brand":{"accent":"#FFFFFF","ink":"#111111","font":"Inter","capSize":38},
+  "captions":{"style":"chest","size":38,"y":1305,"group":6,"maxChars":30},
+  "music":{"id":"auto","db":-22},
+  "sfxProfile":"restrained"
+}

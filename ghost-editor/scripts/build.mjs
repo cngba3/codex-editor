@@ -452,6 +452,7 @@ if (cutoutBeats.length) {
   }
 }
 let matteHtml = "";
+let matteMediaStarts = takes.map((k) => k.a);
 // stan-style panels sit BEHIND the speaker: a cut-out of the speaker for the panel windows is drawn over the panel (matteM below)
 const panelMatte = stanMatteWindows(spec.beats || [], E);
 let panelMatteOk = false;
@@ -485,19 +486,35 @@ if (spec.matte || panelMatte.length) {
     panelMatteOk = panelMatte.length > 0;
   } else if (!fs.existsSync(mp)) {
     if (mcfg.engine !== "hyperframes") warn.push(`matte: BiRefNet venv not set up (bash ${path.join(SKILL, "scripts", "setup_matte.sh")}); used hyperframes remove-background (u2net: softer, jumpier edges)`);
-    console.log("cutting the speaker out (hyperframes remove-background, ~4 fps; cached in assets/talk-matte.webm)...");
+    // The fallback otherwise segments every frame of the entire raw recording,
+    // even for a 15-second preview cut from a several-minute take.
+    const matteInput = path.join(A, "talk-matte-source.mp4");
+    const matteFilter = takes.map((k, i) => `[0:v]trim=start=${k.a}:end=${k.b},setpts=PTS-STARTPTS[v${i}]`).join(";") +
+      `;${takes.map((_, i) => `[v${i}]`).join("")}concat=n=${takes.length}:v=1:a=0,scale=540:960,fps=15[v]`;
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.resolve(proj, SRC), "-filter_complex", matteFilter,
+      "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", matteInput],
+    { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+    matteMediaStarts = takes.map((_, i) => takes.slice(0, i).reduce((sum, k) => sum + k.dur, 0));
+    console.log(`cutting the speaker out of ${SPEECH.toFixed(1)}s selected footage at 540x960/15fps (cached in assets/talk-matte.webm)...`);
     const localCli = process.env.HYPERFRAMES_CLI_PATH;
     if (localCli && fs.existsSync(localCli)) {
-      execFileSync(process.execPath, [localCli, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+      execFileSync(process.execPath, [localCli, "remove-background", matteInput, "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
     } else if (process.platform === "win32") {
-      execFileSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npx", "-y", HF, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+      execFileSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npx", "-y", HF, "remove-background", matteInput, "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
     } else {
-      execFileSync("npx", ["-y", HF, "remove-background", path.resolve(proj, SRC), "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
+      execFileSync("npx", ["-y", HF, "remove-background", matteInput, "-o", mp], { stdio: ["ignore", "inherit", "inherit"], cwd: proj, maxBuffer: 1 << 28 });
     }
+    fs.writeFileSync(mp + ".json", JSON.stringify({ mode: "selected-takes", mediaStarts: matteMediaStarts, takes: takes.map((k) => [k.a, k.b]) }));
     console.log("  matte done");
   }
+  if (fs.existsSync(mp + ".json")) {
+    const sidecar = JSON.parse(fs.readFileSync(mp + ".json", "utf8"));
+    if (sidecar.mode === "selected-takes" && Array.isArray(sidecar.mediaStarts) && sidecar.mediaStarts.length === takes.length)
+      matteMediaStarts = sidecar.mediaStarts;
+  }
+  panelMatteOk = panelMatte.length > 0 && fs.existsSync(mp);
   if (spec.matte) matteHtml = takes.map((k, i) => `
-      <video id="matte-${i}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${k.a}" data-track-index="2" muted playsinline></video>`).join("");
+      <video id="matte-${i}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${matteMediaStarts[i]}" data-track-index="2" muted playsinline></video>`).join("");
 }
 // the cut-out over the panels: its own copy of the camera wrappers (pipM > baseM > snapM > pushM > punchM, every camera
 // tween drives both copies) ABOVE the panel layers and under every other overlay; one clip per panel run inside each take,
@@ -511,7 +528,7 @@ if (panelMatteOk) {
     if (F1 - F0 < 2) continue;
     const id = `mattep-${j++}`;
     matteM += `
-      <video id="${id}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(F0)}" data-duration="${fgrid(F1 - F0)}" data-media-start="${(k.a + (F0 - k.f0) / FPS).toFixed(6)}" data-track-index="8" muted playsinline></video>`;
+      <video id="${id}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(F0)}" data-duration="${fgrid(F1 - F0)}" data-media-start="${(matteMediaStarts[takes.indexOf(k)] + (F0 - k.f0) / FPS).toFixed(6)}" data-track-index="8" muted playsinline></video>`;
   }
 }
 // the outro is a real still of the last frame, frozen under the end card
@@ -586,7 +603,7 @@ for (const b of beatsList) {
   // Keep large text readable while reserving its estimated wrapped height for
   // caption placement. The minimum covers two lines at the default 96px size.
   const bigLength = [...String(b.text || "")].length;
-  const bigFont = Math.round(Math.max(spec.layout?.compact ? 54 : 58,
+  const bigFont = Math.round(b.size ?? Math.max(spec.layout?.compact ? 54 : 58,
     (spec.layout?.compact ? 70 : 96) - Math.max(0, bigLength - 16) * (spec.layout?.compact ? 1 : 2)));
   const bigCharsPerLine = Math.max(1, Math.floor((CARD.w - 72) / (bigFont * 0.68)));
   const bigLines = Math.max(1, Math.ceil(bigLength / bigCharsPerLine));
@@ -719,65 +736,116 @@ for (const b of beatsList) {
     case "type-composition": {
       const parts = Array.isArray(b.parts) ? b.parts.slice(0, 6) : [];
       if (!parts.length) break;
+      const composition = spec.composition || {};
+      const customComposition = Object.keys(composition).length > 0;
       const firstPartAt = Math.max(t0, Math.min(...parts.map(part => E(part.at, "composition word"))));
       hiddenCaps.push([firstPartAt, t1]);
       const head = face ? placer.span(t0, t1) : null;
       const split = ["split-safe", "connector-split"].includes(b.placement) || parts.length >= 4;
       const opener = parts[0]?.role === "connector";
-      const topCount = split ? (opener ? 1 : 2) : 0;
+      let topCount = split ? (opener ? 1 : 2) : 0;
       const leftSpace = head?.seen ? Math.max(0, head.left - 65) : 310;
       const rightSpace = head?.seen ? Math.max(0, W - head.right - 65) : 310;
       const side = rightSpace >= leftSpace ? "right" : "left";
       const sideRoom = Math.max(leftSpace, rightSpace);
-      const topSide = split && !opener && sideRoom >= 270;
-      const topWidth = topSide ? Math.min(420, Math.max(270, sideRoom - 10)) : 900;
-      const topX = topSide ? (side === "right" ? W - topWidth - 65 : 65) : 90;
-      const topAlign = topSide ? side : "center";
-      const topY = topSide ? Math.max(155, Math.min(440, (head?.top ?? 260) + 15)) : Math.max(70, Math.min(160, (head?.top ?? 270) - 145));
-      const lowerY = head?.seen ? Math.max(1030, head.bottom + 70) : 1090;
+      // Approximate the forehead/hairline from the tracked eyes. Hair may carry
+      // typography; the face from the forehead through the chin stays clear.
+      const faceUpperEdge = head?.seen ? Math.max(head.top, head.eyes - 190) : 700;
+      // The protected zone ends below the mouth/chin; shoulders and chest are
+      // usable reading space when the user asks only to keep text off the face.
+      const lowerY = head?.seen ? Math.max(1120, head.mouth + 155) : 1090;
       const requestedUpper = String(b.placement || "").startsWith("upper") && (head?.top ?? 300) > 220;
-      const upperY = Math.max(70, Math.min(145, (head?.top ?? 300) - 160));
-      const mainX = requestedUpper && b.placement === "upper-left" ? 70 : 90;
-      const mainWidth = requestedUpper && b.placement === "upper-left" ? 900 : 900;
-      const mainAlign = requestedUpper && b.placement === "upper-left" ? "left" : "center";
+      const mainWidth = 900;
       const lineHeight = (part, size, width) => {
         const chars = [...String(part.text || "")].length;
         const lines = Math.max(1, Math.ceil(chars / (width / (size * (part.role === "serif" ? .52 : .56)))));
-        return Math.ceil(lines * size * 1.08 + 10);
+        return lines === 1 ? Math.ceil(size * (part.role === "serif" ? .84 : .93) + 6)
+          : Math.ceil(lines * size * 1.05 + 8);
       };
+      const minimumSize = part => customComposition
+        ? part.role === "connector" ? 68 : part.role === "hero" ? 68 : part.role === "serif" ? 40 : 55
+        : part.role === "connector" ? 78 : part.role === "hero" ? 88 : part.role === "serif" ? 48 : 68;
+      const fitSize = (part, width) => Math.floor(width / Math.max(1, [...String(part.text || "")].length * (part.role === "serif" ? .52 : .56)));
       const sizeOf = (part, width, compact) => {
         const serif = part.role === "serif";
-        const max = part.role === "connector" ? 83 : serif ? (compact ? 43 : 51) : part.role === "hero" ? (compact ? 76 : 105) : (compact ? 58 : 72);
-        const fit = Math.floor(width / Math.max(1, [...String(part.text || "")].length * (serif ? .52 : .56)));
-        return Math.max(serif ? 29 : 37, Math.min(max, fit));
+        const max = customComposition
+          ? part.role === "connector" ? Math.max(68, Math.round((composition.size || 100) * .85))
+            : serif ? Math.max(40, Math.round((composition.size || 100) * .55))
+              : part.role === "hero" ? Math.max(68, Math.round(composition.size || 100)) : Math.max(55, Math.round((composition.size || 100) * .75))
+          : part.role === "connector" ? 90 : serif ? (compact ? 52 : 56) : part.role === "hero" ? (compact ? 105 : 115) : (compact ? 76 : 80);
+        // Keep display text readable on a phone; a longer phrase wraps instead
+        // of shrinking into a small font inside its layout box.
+        return Math.max(minimumSize(part), Math.min(max, fitSize(part, width)));
       };
+      const topFullSizes = parts.slice(0, topCount).map(part => sizeOf(part, 900, false));
+      const topFullHeight = parts.slice(0, topCount).reduce((sum, part, i) => sum + lineHeight(part, topFullSizes[i], 900), 0);
+      const upperFits = !head?.seen || faceUpperEdge - 50 - topFullHeight >= 100;
+      const sideWidth = Math.min(420, Math.max(270, sideRoom - 10));
+      const sideReadable = sideRoom >= 270 && parts.slice(0, topCount).every(part => fitSize(part, sideWidth) >= minimumSize(part));
+      const topSide = split && !opener && sideReadable && (!upperFits || sideRoom >= 420);
+      // If neither the upper band nor a readable side column fits, keep the
+      // whole phrase together in the full-width lower band instead of shrinking it.
+      if (split && !opener && !upperFits && !sideReadable) topCount = 0;
+      const topWidth = topSide ? sideWidth : 900;
+      const topX = topSide ? (side === "right" ? W - topWidth - 65 : 65) : 90;
+      const topAlign = topSide ? side : "center";
+      const topY = topSide ? Math.max(155, Math.min(440, (head?.top ?? 260) + 15))
+        : head?.seen ? Math.max(100, Math.min(220, faceUpperEdge - 50 - topFullHeight))
+        : Math.max(70, Math.min(160, (head?.top ?? 270) - 145));
       const topSizes = parts.slice(0, topCount).map(part => sizeOf(part, topWidth, topSide));
       const mainSizes = parts.slice(topCount).map(part => sizeOf(part, mainWidth, false));
       const mainHeights = parts.slice(topCount).map((part, i) => lineHeight(part, mainSizes[i], mainWidth));
       const mainTotal = mainHeights.reduce((sum, h) => sum + h, 0);
+      const compactPlacement = (index, group, sizes) => {
+        if (group.length <= 1) return { x: 90, width: 900, align: "center" };
+        const visualWidth = (part, size) => Math.min(900, [...String(part.text || "")].length * size * (part.role === "serif" ? .56 : .60));
+        const widest = Math.max(...group.map((part, i) => visualWidth(part, sizes[i])));
+        // Keep the stepped headline as one compact reading group. A large
+        // horizontal shift makes short connector words look detached.
+        const step = composition.step ?? 60;
+        const clusterWidth = Math.min(900, widest + step * (group.length - 1) + 20);
+        const clusterLeft = Math.round((W - clusterWidth) / 2);
+        const x = Math.max(70, Math.min(clusterLeft + step * index, W - 70 - visualWidth(group[index], sizes[index])));
+        return { x, width: W - x - 70, align: "left" };
+      };
       let topOffset = 0, mainOffset = 0;
-      const upperFallback = !split && head?.seen && lowerY + mainTotal > 1720 && head.top > mainTotal + 130;
-      const mainStart = requestedUpper && !split || upperFallback
-        ? upperY
-        : Math.max(80, Math.min(1720 - mainTotal, lowerY));
+      const lowerRoom = 1720 - lowerY;
+      const upperRoom = head?.seen ? faceUpperEdge - 150 : 1400;
+      const mainAbove = topCount === 0 && (requestedUpper || mainTotal > lowerRoom) && mainTotal <= upperRoom;
+      // A long stack that fits neither band turns over one phrase at a time.
+      // This preserves the font floor and never lifts the lower text onto the face.
+      const mainSequential = !mainAbove && mainTotal > lowerRoom;
+      const tallestMain = Math.max(0, ...mainHeights);
+      const sequentialAbove = mainSequential && topCount === 0 && 100 + tallestMain <= faceUpperEdge - 50 && lowerY + tallestMain > H - 80;
+      const blackPlate = mainSequential && !sequentialAbove && lowerY + tallestMain > H - 80;
+      const mainStart = mainAbove ? Math.max(100, Math.min(220, faceUpperEdge - 50 - mainTotal))
+        : sequentialAbove ? Math.max(100, Math.min(220, faceUpperEdge - 50 - tallestMain))
+        : blackPlate ? Math.round((H - tallestMain) / 2) : lowerY;
       const html = parts.map((part, i) => {
         const inTop = i < topCount;
         const role = ["hero", "support", "connector"].includes(part.role) ? part.role : "serif";
         const serif = role === "serif";
         const phrase = String(part.text || "").trim();
         const size = inTop ? topSizes[i] : mainSizes[i - topCount];
-        const color = role === "hero" || role === "connector" ? (brand.accent || "#F4E7A5") : "#fff";
+        const color = role === "hero" || role === "connector" ? (composition.color || brand.accent || "#F4E7A5")
+          : role === "serif" ? (composition.serifColor || "#fff") : (composition.supportColor || "#fff");
+        const font = serif && composition.mixedFonts !== false ? "Playfair Display" : (composition.font || "Inter Tight");
+        const slant = composition.slant ?? -6;
         const at = Math.max(t0, Math.min(t1 - .07, E(part.at, "composition word")));
         tl.push(`ft("#${id}-p${i}", { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power2.out" }, ${at});`);
-        const x = inTop ? topX : mainX;
-        const width = inTop ? topWidth : mainWidth;
-        const align = inTop ? topAlign : mainAlign;
-        const top = inTop ? topY + topOffset : mainStart + mainOffset;
+        const placement = inTop && topSide ? { x: topX, width: topWidth, align: topAlign }
+          : compactPlacement(inTop ? i : i - topCount, inTop ? parts.slice(0, topCount) : parts.slice(topCount), inTop ? topSizes : mainSizes);
+        const { x, width, align } = placement;
+        const top = inTop ? topY + topOffset : mainStart + (mainSequential ? 0 : mainOffset);
         if (inTop) topOffset += lineHeight(part, size, width);
         else mainOffset += mainHeights[i - topCount];
-        return `<div id="${id}-p${i}" style="position:absolute;left:${x}px;top:${top}px;width:${width}px;text-align:${align};font-family:'${serif ? "Playfair Display" : "Inter Tight"}',sans-serif;font-size:${size}px;font-weight:${serif ? 500 : 850};font-style:${serif ? "normal" : "italic"};line-height:1.05;letter-spacing:${serif ? "-1px" : "-3px"};color:${color};text-shadow:0 5px 20px rgba(0,0,0,.72);white-space:normal;overflow-wrap:break-word">${esc(phrase)}</div>`;
+        return `<div id="${id}-p${i}" style="position:absolute;left:${x}px;top:${top}px;width:${width}px;text-align:${align};font-family:'${font}',sans-serif;font-size:${size}px;font-weight:${serif ? 500 : 850};font-style:normal;line-height:1.05;letter-spacing:${serif ? "-1px" : "-3px"};color:${color};text-shadow:0 5px 20px rgba(0,0,0,.72);white-space:normal;overflow-wrap:break-word"><span style="display:inline-block;max-width:100%;${serif ? "" : `transform:skewX(${slant}deg);`}">${esc(phrase)}</span></div>`;
       }).join("");
-      inner = `<div id="${id}-in" class="ov" style="inset:0;z-index:4">${html}</div>`;
+      if (mainSequential) for (let i = topCount + 1; i < parts.length; i++) {
+        const nextAt = Math.max(t0, Math.min(t1 - .07, E(parts[i].at, "composition word")));
+        tl.push(`tl.to("#${id}-p${i - 1}", { autoAlpha: 0, duration: 0.08 }, ${Math.max(t0, nextAt - .08)});`);
+      }
+      inner = `<div id="${id}-in" class="ov" style="inset:0;z-index:4">${blackPlate ? `<div style="position:absolute;inset:0;background:#09090c"></div>` : ""}${html}</div>`;
       break;
     }
     case "type-connector": {
@@ -785,8 +853,8 @@ for (const b of beatsList) {
       const head = face ? placer.span(t0, t1) : null;
       const y = Math.max(70, Math.min(150, (head?.top ?? 270) - 145));
       const phrase = String(b.text || "").trim();
-      const size = Math.max(48, Math.min(86, Math.floor(900 / Math.max(1, [...phrase].length * .56))));
-      inner = `<div id="${id}-in" class="ov" style="left:90px;top:${y}px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:italic;color:${brand.accent || "#F4E7A5"};text-shadow:0 5px 20px rgba(0,0,0,.65)">${esc(phrase)}</div>`;
+      const size = Math.max(78, Math.min(86, Math.floor(900 / Math.max(1, [...phrase].length * .56))));
+      inner = `<div id="${id}-in" class="ov" style="left:90px;top:${y}px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:normal;color:${brand.accent || "#F4E7A5"};text-shadow:0 5px 20px rgba(0,0,0,.65)"><span style="display:inline-block;max-width:100%;transform:skewX(-6deg)">${esc(phrase)}</span></div>`;
       tl.push(enter(`#${id}-in`, t0));
       break;
     }
@@ -794,8 +862,8 @@ for (const b of beatsList) {
       hiddenCaps.push([t0, t1]);
       b._track = 9;
       const phrase = String(b.text || "").trim();
-      const size = Math.max(66, Math.min(125, Math.floor(840 / Math.max(1, [...phrase].length * .45))));
-      inner = `<div id="${id}-in" class="ov" style="inset:0;width:${W}px;height:${H}px;background:#09090c;z-index:6"><div id="${id}-flash" style="position:absolute;left:90px;top:740px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:italic;line-height:1.02;letter-spacing:-3px;color:${brand.accent || "#F4E7A5"};text-shadow:0 0 36px rgba(244,231,165,.2);overflow-wrap:break-word">${esc(phrase)}</div></div>`;
+      const size = Math.max(96, Math.min(125, Math.floor(840 / Math.max(1, [...phrase].length * .45))));
+      inner = `<div id="${id}-in" class="ov" style="inset:0;width:${W}px;height:${H}px;background:#09090c;z-index:6"><div id="${id}-flash" style="position:absolute;left:90px;top:740px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:normal;line-height:1.02;letter-spacing:-3px;color:${brand.accent || "#F4E7A5"};text-shadow:0 0 36px rgba(244,231,165,.2);overflow-wrap:break-word"><span style="display:inline-block;max-width:100%;transform:skewX(-6deg)">${esc(phrase)}</span></div></div>`;
       tl.push(`tl.set("#${id}-flash", { opacity: 1 }, ${t0});`);
       if (dur > 1.0) {
         const blinkAt = r3(t0 + Math.min(.5, dur * .42));
@@ -1002,6 +1070,7 @@ const groups = [];
 let cur = [];
 for (const w of words) {
   if (cur.length && (w.start - cur.at(-1).end > 0.6)) { groups.push(cur); cur = []; }
+  if (cap.style === "mini" && cur.length && cur.map(x => x.word).join(" ").length + w.word.length + 1 > (cap.maxChars ?? 44)) { groups.push(cur); cur = []; }
   cur.push(w);
   if (cur.length >= cap.group || /[.?!,]$/.test(w.word)) { groups.push(cur); cur = []; }
 }
@@ -1042,13 +1111,13 @@ const capHtml = chest ? chest.html : cap.style === "none" || edit || tpl ? "" : 
   // mini: small captions at a fixed height (reference-style); they jump to the panel seam during split-screen B-roll
   const inSplit = (spec._splitRuns || []).some(([a, b]) => s < b && e > a);
   const pl = cap.style === "mini" ? { y: inSplit ? (cap.splitY ?? 985) : (cap.y ?? 1360), mode: "fixed" } : placer.place(s, e, capSize * (cap.style === "pill" ? 1.6 : 1.3));
-  return `<div id="cg${gi}" class="cap-group clip${pl.mode === "lower-face" && cap.style !== "pill" ? " cap-backed" : ""}" style="top:${pl.y}px${pl.scale && pl.scale < 1 ? `;transform:translateX(-50%) scale(${pl.scale});transform-origin:50% 0` : ""}" data-start="${r3(s)}" data-duration="${r3(Math.max(0.1, e - s))}" data-track-index="5">${g.map((w, wi) => `<span id="cg${gi}w${wi}" class="w">${esc(w.word)}</span>`).join("")}</div>`;
+  return `<div id="cg${gi}" class="cap-group clip${pl.mode === "lower-face" && cap.style !== "pill" ? " cap-backed" : ""}" style="top:${pl.y}px${pl.scale && pl.scale < 1 ? `;transform:translateX(-50%) scale(${pl.scale});transform-origin:50% 0` : ""}" data-start="${r3(s)}" data-duration="${r3(Math.max(0.1, e - s))}" data-track-index="5">${g.map((w, wi) => `<span id="cg${gi}w${wi}" class="w">${esc(w.word)}</span>`).join(cap.style === "mini" ? " " : "")}</div>`;
 }).join("\n      ");
 
 const cyr = /[\u0400-\u04FF]/.test(JSON.stringify(spec.beats || []) + words.map((w) => w.word).join(" "));
 const UI_FONT = brand.font || (cyr ? "Inter" : "Geist");
 const capCss = cap.style === "mini"
-  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: #fff; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} ${cap.background ? `background:${cap.background};padding:10px 18px;border-radius:12px;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8); max-width: 940px; }`
+  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: #fff; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} ${cap.background ? `background:${cap.background};padding:${cap.padding ?? "10px 18px"};border-radius:${cap.radius ?? 12}px;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.55); max-width: 940px; } .cap-group .w { margin: 0 0.08em; }`
   : cap.style === "clean"
   ? `.cap-group { font-family: ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? brand.capSize}px; font-weight: 800; color: #fff; letter-spacing: -1px; text-shadow: 0 4px 18px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.6); }`
   : cap.style === "pill"

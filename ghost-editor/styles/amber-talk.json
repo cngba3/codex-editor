@@ -1,5 +1,5 @@
 {
-  "_about": "Derived from template-1.mp4: warm talking head, restrained push-ins, small white subtitles, short cream-yellow italic keyword headlines, occasional illustrative cutaway.",
+  "_about": "Derived from template-1.mp4: warm talking head, restrained push-ins, rounded translucent subtitles, stepped cream-yellow headlines with gentle slant, occasional photographic cutaway.",
   "brand": {
     "accent": "#F4E7A5",
     "accentDark": "#D9C77C",
@@ -9,14 +9,17 @@
   },
   "captions": {
     "style": "mini",
-    "group": 5,
+    "group": 8,
+    "maxChars": 44,
     "y": 1380,
     "font": "Inter Tight",
     "size": 48,
-    "weight": 600,
+    "weight": 450,
     "tracking": "0px",
-    "stroke": 1,
-    "background": "rgba(11, 14, 18, 0.52)"
+    "stroke": 0,
+    "background": "rgba(11, 14, 18, 0.62)",
+    "radius": 24,
+    "padding": "10px 18px"
   },
   "titleVariants": [
     { "placement": "upper-left", "font": "Inter Tight", "size": 108, "italic": true, "mixed": true, "align": "left" },

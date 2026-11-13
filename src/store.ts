@@ -9,6 +9,7 @@ export type Project = {
   referenceName?: string
   raw: Blob
   reference?: Blob
+  supporting?: { name: string; blob: Blob }[]
   duration: number
   size: number
 }

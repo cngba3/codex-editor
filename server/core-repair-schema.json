@@ -1,0 +1,8 @@
+{
+  "type":"object","additionalProperties":false,
+  "required":["rationale","beats_json","captions_json","zoom_json","music_json"],
+  "properties":{
+    "rationale":{"type":"string"},"beats_json":{"type":"string"},
+    "captions_json":{"type":"string"},"zoom_json":{"type":"string"},"music_json":{"type":"string"}
+  }
+}

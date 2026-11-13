@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'local-codex-api',
+      name: 'local-codex-and-jobs-api',
       configureServer(server) { server.middlewares.use(codexApi); server.middlewares.use(jobsApi) },
       configurePreviewServer(server) { server.middlewares.use(codexApi); server.middlewares.use(jobsApi) },
     },

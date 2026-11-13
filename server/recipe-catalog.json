@@ -1,0 +1,18 @@
+[
+  {"id":"clean-os","folder":"clean-os","module":"cleanos","builder":"CleanOS","base":"clean"},
+  {"id":"result-podcast","folder":"result-podcast","module":"faceresult","builder":"FaceResult","base":"editorial"},
+  {"id":"face-result","folder":"result-podcast","module":"faceresult","builder":"FaceResult","base":"editorial"},
+  {"id":"whiteboard","folder":"whiteboard","module":"board","builder":"Board","base":"clean"},
+  {"id":"kinetic-doc","folder":"kinetic-doc","module":"kdoc","builder":"KineticDoc","base":"kinetic"},
+  {"id":"caption-news","folder":"caption-news","module":"captionnews","builder":"News","base":"editorial"},
+  {"id":"step-deck","folder":"step-deck","module":"stepdeck","builder":"Deck","base":"kinetic","matte":true},
+  {"id":"halftone-dossier","folder":"halftone-dossier","module":"dossier","builder":"Dossier","base":"editorial","matte":true},
+  {"id":"hologram-hud","folder":"hologram-hud","module":"hologramhud","builder":"Hud","base":"launch"},
+  {"id":"news-package","folder":"news-package","module":"newspackage","builder":"Bulletin","base":"editorial"},
+  {"id":"swiss-grid","folder":"swiss-grid","module":"swissgrid","builder":"Grid","base":"editorial"},
+  {"id":"data-story","folder":"data-story","module":"datastory","builder":"DataStory","base":"clean"},
+  {"id":"product-page","folder":"product-page","module":"productpage","builder":"ProductPage","base":"clean"},
+  {"id":"tactile-paper","folder":"tactile-paper","module":"tactile","builder":"Tactile","base":"editorial"},
+  {"id":"telestrator","folder":"telestrator","module":"telestrator","builder":"Show","base":"clean"},
+  {"id":"seoul-list","folder":"seoul-list","module":"seoul","builder":"SeoulList","base":"clean","supporting":true}
+]

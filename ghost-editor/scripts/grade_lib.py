@@ -231,9 +231,7 @@ def write_cube(path, p, transfer=None, n=None):
 
 # ------------------------------------------------------------------ media helpers
 def probe(path):
-    j = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                                   "stream=width,height,r_frame_rate,avg_frame_rate,color_transfer,color_primaries,color_space,pix_fmt,codec_name"
-                                   ":stream_side_data=rotation,side_data_type,crop_left,crop_right,crop_top,crop_bottom:format=duration",
+    j = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_streams", "-show_format",
                                    "-of", "json", path],
                                   capture_output=True, text=True, check=True).stdout)
     s = j["streams"][0]

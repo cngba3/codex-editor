@@ -100,8 +100,8 @@ def setup(project, cut=None, tag=None, clip=None):
         os.symlink(vsrc, f"{P}/assets/voice.wav")
     st = f"{P}/build/plate_stats.json"
     if not os.path.exists(st):          # reference grade of the plate as shot (wide), computed here: no cache file beside the shared plate
-        sh([PY, "-c", f"import sys, json; sys.path.insert(0, '{SK}/scripts'); import grade_lib as g; "
-            f"json.dump(g.plate_stats('{wide}', cache=False), open('{st}', 'w'))"])
+        sh([PY, "-c", "import sys, json; sys.path.insert(0, sys.argv[1]); import grade_lib as g; "
+            "json.dump(g.plate_stats(sys.argv[2], cache=False), open(sys.argv[3], 'w'))", f"{SK}/scripts", wide, st])
     G["stats"] = st
     os.chdir(P)
     return P

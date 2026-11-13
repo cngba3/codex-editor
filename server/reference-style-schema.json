@@ -1,0 +1,190 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "about",
+    "basePreset",
+    "accent",
+    "captionStyle",
+    "captionFont",
+    "captionSize",
+    "captionGroup",
+    "captionY",
+    "captionBackground",
+    "headlineMode",
+    "headlineFont",
+    "headlineColor",
+    "supportColor",
+    "serifColor",
+    "mixedFonts",
+    "headlineSize",
+    "headlineStep",
+    "headlineSlant",
+    "transition",
+    "zoom",
+    "blackFlash",
+    "needsMatte",
+    "visualRules",
+    "motionRules",
+    "soundRules",
+    "limitations",
+    "editRules",
+    "assetRules",
+    "recipeChecks"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "about": {
+      "type": "string"
+    },
+    "basePreset": {
+      "type": "string",
+      "enum": [
+        "clean",
+        "editorial",
+        "meme",
+        "cinematic",
+        "launch",
+        "kinetic",
+        "pop",
+        "amber-talk"
+      ]
+    },
+    "accent": {
+      "type": "string"
+    },
+    "captionStyle": {
+      "type": "string",
+      "enum": [
+        "clean",
+        "editorial",
+        "hype",
+        "explosive",
+        "line-focus",
+        "neo-minimal",
+        "karaoke-fill",
+        "highlighter",
+        "mini"
+      ]
+    },
+    "captionFont": {
+      "type": "string",
+      "enum": [
+        "Inter",
+        "Inter Tight",
+        "Montserrat",
+        "Oswald",
+        "Playfair Display",
+        "Unbounded",
+        "Geist"
+      ]
+    },
+    "captionSize": {
+      "type": "number"
+    },
+    "captionGroup": {
+      "type": "number"
+    },
+    "captionY": {
+      "type": "number"
+    },
+    "captionBackground": {
+      "type": "string"
+    },
+    "headlineMode": {
+      "type": "string",
+      "enum": [
+        "stepped",
+        "big",
+        "scene",
+        "none"
+      ]
+    },
+    "headlineFont": {
+      "type": "string",
+      "enum": [
+        "Inter",
+        "Inter Tight",
+        "Montserrat",
+        "Oswald",
+        "Playfair Display",
+        "Unbounded",
+        "Geist"
+      ]
+    },
+    "headlineColor": {
+      "type": "string"
+    },
+    "supportColor": {
+      "type": "string"
+    },
+    "serifColor": {
+      "type": "string"
+    },
+    "mixedFonts": {
+      "type": "boolean"
+    },
+    "headlineSize": {
+      "type": "number"
+    },
+    "headlineStep": {
+      "type": "number"
+    },
+    "headlineSlant": {
+      "type": "number"
+    },
+    "transition": {
+      "type": "string",
+      "enum": [
+        "cut",
+        "dissolve",
+        "blur",
+        "wipe"
+      ]
+    },
+    "zoom": {
+      "type": "string",
+      "enum": [
+        "none",
+        "subtle",
+        "punch"
+      ]
+    },
+    "blackFlash": {
+      "type": "boolean"
+    },
+    "needsMatte": {
+      "type": "boolean"
+    },
+    "visualRules": {
+      "type": "string"
+    },
+    "motionRules": {
+      "type": "string"
+    },
+    "soundRules": {
+      "type": "string"
+    },
+    "limitations": {
+      "type": "string"
+    },
+    "editRules": {
+      "type": "string",
+      "description": "Reusable recipe: opening hook, sentence/take selection, progression, cut cadence and ending; explain when to apply each, not just appearance."
+    },
+    "assetRules": {
+      "type": "string",
+      "description": "When and why to insert images, screens, B-roll or drawings, subject relevance, asset requirements, and fallback when absent."
+    },
+    "recipeChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Observable acceptance criteria specific to this recipe; distinguish observed rules from uncertain audio or motion."
+    }
+  }
+}

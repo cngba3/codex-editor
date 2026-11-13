@@ -240,6 +240,11 @@ def bare_project(path, skill=None, recipe=None):
                           "end": x.get("end", x.get("e"))} for x in w if isinstance(x, dict)]
         pr.words_edit = [x for x in pr.words_edit if x["start"] is not None]
         break
+    events = os.path.join(b, "sfx_events.json")
+    if os.path.exists(events):
+        value = json.load(open(events, encoding="utf-8"))
+        if all(key in value for key in ("events", "voiceP95", "roleDb")):
+            pr.sfx = value
     return pr
 
 
