@@ -29,3 +29,11 @@ Máy chạy job cần Codex CLI đã đăng nhập, `uv` và Python 3.11 (`uv py
 Repo gốc có nhiều recipe riêng và công cụ B-roll, matte, meme, kiểm duyệt người trong ảnh. Bản Windows hiện dùng 7 preset của `styles/`; các recipe riêng chưa tự động chạy từ giao diện. Tìm stock B-roll và tạo ảnh AI cần nguồn media hoặc Gemini key, nên bản thử không thể bảo đảm hình minh họa như mọi demo. Nhận dạng tiếng Việt vẫn có thể sai chữ và cần review. Script QA hiện chạy với `--no-stem`, chưa chạy bước render stem SFX riêng.
 
 Output và dữ liệu job nằm ở `jobs/<id>/`; MP4 truy cập tại `/api/jobs/<id>/output`. Thư mục `jobs/` và `.cache/` không được đưa vào git.
+
+## Bản đầy đủ và chép lời tiếng Việt
+
+Sau khi bản nháp hoàn thành, nhấn **Dựng bản đầy đủ** trong Studio. App dùng lại video nguồn đã tải, chọn các câu rõ nghĩa và tạo một job mới; bản nháp vẫn có link riêng. Bản đầy đủ hiện giới hạn tối đa 60 giây đầu ra. Video render có phụ đề tự động; người dùng nên nghe và rà lại chữ trước khi phát hành.
+
+ASR mặc định dùng faster-whisper `small` trên CPU. App ưu tiên `medium` nếu model này đã tải xong trong `.cache/`; `medium` cần khoảng 1,5 GB dung lượng và chạy chậm hơn. Cài bằng `npm run setup:model -- medium`. Muốn ép dùng model nhỏ, đặt `AI_EDITOR_ASR_MODEL=small` trước khi chạy `npm run dev`. ASR hiện dùng beam 5, giữ mọi khoảng lời nói để tránh bỏ câu, và ghi thời gian từng từ cho phụ đề. Trong ô ghi chú của Studio, có thể thêm dòng `Thuật ngữ: cửa khẩu, giá cả, tên sản phẩm` để giúp ASR nhận tên riêng và từ chuyên môn.
+
+`ghost-editor/` được đưa trực tiếp vào repo này như mã nguồn bình thường, không phải submodule. File media đã render, model ASR và thông tin đăng nhập Codex đều nằm ngoài git.

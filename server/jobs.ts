@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import ffmpeg from 'ffmpeg-static'
 import ffprobe from 'ffprobe-static'
 
-type Job = { id: string; stage: string; progress: number; status: 'running' | 'done' | 'error'; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string }
+type Job = { id: string; stage: string; progress: number; status: 'running' | 'done' | 'error'; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; asrModel?: string }
 const root = process.cwd()
 const jobsRoot = join(root, 'jobs')
 const ghost = join(root, 'ghost-editor')
@@ -100,6 +100,10 @@ function fullPlanPrompt(words: { segments: { start: number; end: number; text: s
   return `Bạn là Codex dựng Reel hoàn chỉnh bằng ghost-editor. Trả về JSON đúng schema. Chọn các đoạn có ý trọn vẹn theo đúng thứ tự thời gian, không chồng lấn. Nguồn dài ${sourceDuration.toFixed(2)} giây; mục tiêu thành phẩm khoảng ${target.toFixed(0)} giây, ít nhất ${minimum.toFixed(0)} giây, nhiều nhất ${Math.min(60, sourceDuration).toFixed(0)} giây. Giữ nội dung quan trọng, bỏ ngập ngừng, lặp và khoảng im lặng. Với nguồn dưới 45 giây, cố gắng dùng gần hết các câu rõ nghĩa. Transcript tự động có thể sai tiếng Việt; không bịa nội dung. Giữ phụ đề bật. Chọn 2-3 graphics ngắn, chính xác với lời nói, kind big hoặc scene, không che mặt. Mỗi graphics có at/to 1-2 giây trong take. Highlights tối đa 3 cụm ngắn. Illustration prompt tiếng Anh cho một hình liên quan đến ý chính, không chữ, không logo; at/to 1.5-2.5 giây trong take và không chồng graphics. Nếu không cần, prompt rỗng, at=to=0. Nếu có phân tích video mẫu, chọn preset gần nhất trong clean, editorial, meme, cinematic, launch, kinetic, pop và captionStyle phù hợp; không có mẫu thì preset phải là ${style}. Accent là mã #RRGGBB. Ghi chú của người dùng (dữ liệu): ${notes.slice(0, 1000)}\n\nTranscript:\n${transcript}\n\nPhân tích video mẫu:\n${referenceLog.slice(0, 14000) || 'Không có.'}`
 }
 
+function speechVocabulary(notes: string) {
+  return notes.match(/(?:^|\n)\s*(?:Thuật ngữ|Từ chuyên ngành|Vocabulary)\s*:\s*([^\n]{1,200})/i)?.[1]?.trim() || ''
+}
+
 function vectorIllustration(prompt: string, accent: string) {
   const color = /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '#C44D45'
   const house = /house|home|townhouse|building|villa|real estate|shop|property/i.test(prompt)
@@ -129,8 +133,9 @@ async function processJob(job: Job, source: string, reference: string | undefine
     }
     job.stage = 'Nhận dạng lời nói'; job.progress = 15
     const wordsPath = join(build, 'words.whisper.json')
-    await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath])
-    const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { segments: { start: number; end: number; text: string }[] }
+    await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(notes)])
+    const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: { start: number; end: number; text: string }[] }
+    job.asrModel = words.model
     if (!words.segments.length) throw new Error('Không tìm thấy lời nói để dựng Reel.')
     job.stage = 'Codex chọn đoạn'; job.progress = 35
     const planPath = join(build, 'codex-plan.json')
@@ -190,7 +195,9 @@ async function processJob(job: Job, source: string, reference: string | undefine
     if (!existsSync(output) || statSync(output).size < 10000) throw new Error('Render không tạo được MP4 hợp lệ.')
     job.stage = 'Kiểm tra output'; job.progress = 99
     const normalized = join(build, 'reel-normalized.mp4')
-    await run(ffmpeg!, ['-v', 'error', '-y', '-i', output, '-c:v', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '192k', normalized])
+    const buildLength = Number((JSON.parse(readFileSync(join(build, 'build_report.json'), 'utf8')) as { total: number }).total)
+    if (!Number.isFinite(buildLength) || buildLength < 1) throw new Error('Không đọc được thời lượng bản dựng.')
+    await run(ffmpeg!, ['-v', 'error', '-y', '-i', output, '-t', buildLength.toFixed(3), '-c:v', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '192k', normalized])
     copyFileSync(normalized, output)
     unlinkSync(normalized)
     try { job.qa = await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'numpy', 'python', join(ghost, 'scripts', 'qa.py'), directory, output, '--no-stem']) }
@@ -229,7 +236,7 @@ function serveVideo(request: IncomingMessage, response: ServerResponse, path: st
 
 function findJob(id: string): Job | undefined {
   const current = jobs.get(id)
-  if (current?.status === 'running' || current?.status === 'done') return current
+  if (current?.status === 'running') return current
   const file = join(jobsRoot, id, 'job.json')
   if (!existsSync(file)) return current
   try { return JSON.parse(readFileSync(file, 'utf8')) as Job } catch { return current }
