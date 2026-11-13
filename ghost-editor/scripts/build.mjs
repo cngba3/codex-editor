@@ -583,9 +583,15 @@ for (const b of beatsList) {
   }
   let inner = "", css = "";
   // cards and the reaction slot avoid the face too (unless the spec pins them)
-  // Big cards can wrap to two lines at 96px. Reserve their rendered height so
-  // face-aware captions move below the card instead of crossing its last line.
-  const CARD_H = { big: b.sub ? 340 : 300, chips: 200, strike: 190, quote: 90 + (b.lines || []).length * 70, list: 60 + (b.lines || []).length * 64 };
+  // Keep large text readable while reserving its estimated wrapped height for
+  // caption placement. The minimum covers two lines at the default 96px size.
+  const bigLength = [...String(b.text || "")].length;
+  const bigFont = Math.round(Math.max(spec.layout?.compact ? 54 : 58,
+    (spec.layout?.compact ? 70 : 96) - Math.max(0, bigLength - 16) * (spec.layout?.compact ? 1 : 2)));
+  const bigCharsPerLine = Math.max(1, Math.floor((CARD.w - 72) / (bigFont * 0.68)));
+  const bigLines = Math.max(1, Math.ceil(bigLength / bigCharsPerLine));
+  const bigHeight = Math.max(300, Math.ceil(88 + bigLines * bigFont * 1.02 + (b.sub ? 60 : 0)));
+  const CARD_H = { big: bigHeight, chips: 200, strike: 190, quote: 90 + (b.lines || []).length * 70, list: 60 + (b.lines || []).length * 64 };
   let cy = CARD.y;
   if (CARD_H[b.type] && spec.layout?.cardY === undefined && face) {
     const pc = placer.card(t0, t1, CARD_H[b.type] * (spec.layout?.compact ? 0.8 : 1));
@@ -609,7 +615,7 @@ for (const b of beatsList) {
 
   switch (b.type) {
     case "big": {
-      inner = box(`<div class="big-text" id="${id}-n">${esc(b.text)}</div>${b.sub ? `<div class="big-sub">${esc(b.sub)}</div>` : ""}`);
+      inner = box(`<div class="big-text" id="${id}-n" style="font-size:${bigFont}px">${esc(b.text)}</div>${b.sub ? `<div class="big-sub">${esc(b.sub)}</div>` : ""}`);
       tl.push(enter(`#${id}-in`, t0));
       const num = /^([^\d]*)([\d,.]+)(.*)$/.exec(b.text);
       if (b.count && num) {
