@@ -734,9 +734,9 @@ for (const b of beatsList) {
       const topX = topSide ? (side === "right" ? W - topWidth - 65 : 65) : 90;
       const topAlign = topSide ? side : "center";
       const topY = topSide ? Math.max(155, Math.min(440, (head?.top ?? 260) + 15)) : Math.max(70, Math.min(160, (head?.top ?? 270) - 145));
-      const lowerY = head?.seen ? Math.max(1030, Math.min(1220, head.bottom + 70)) : 1090;
+      const lowerY = head?.seen ? Math.max(1030, head.bottom + 70) : 1090;
       const requestedUpper = String(b.placement || "").startsWith("upper") && (head?.top ?? 300) > 220;
-      const mainY = requestedUpper && !split ? Math.max(70, Math.min(145, (head?.top ?? 300) - 160)) : lowerY;
+      const upperY = Math.max(70, Math.min(145, (head?.top ?? 300) - 160));
       const mainX = requestedUpper && b.placement === "upper-left" ? 70 : 90;
       const mainWidth = requestedUpper && b.placement === "upper-left" ? 900 : 900;
       const mainAlign = requestedUpper && b.placement === "upper-left" ? "left" : "center";
@@ -756,7 +756,10 @@ for (const b of beatsList) {
       const mainHeights = parts.slice(topCount).map((part, i) => lineHeight(part, mainSizes[i], mainWidth));
       const mainTotal = mainHeights.reduce((sum, h) => sum + h, 0);
       let topOffset = 0, mainOffset = 0;
-      const mainStart = Math.max(80, Math.min(1500 - mainTotal, mainY));
+      const upperFallback = !split && head?.seen && lowerY + mainTotal > 1720 && head.top > mainTotal + 130;
+      const mainStart = requestedUpper && !split || upperFallback
+        ? upperY
+        : Math.max(80, Math.min(1720 - mainTotal, lowerY));
       const html = parts.map((part, i) => {
         const inTop = i < topCount;
         const role = ["hero", "support", "connector"].includes(part.role) ? part.role : "serif";
@@ -789,6 +792,7 @@ for (const b of beatsList) {
     }
     case "black-flash": {
       hiddenCaps.push([t0, t1]);
+      b._track = 9;
       const phrase = String(b.text || "").trim();
       const size = Math.max(66, Math.min(125, Math.floor(840 / Math.max(1, [...phrase].length * .45))));
       inner = `<div id="${id}-in" class="ov" style="inset:0;width:${W}px;height:${H}px;background:#09090c;z-index:6"><div id="${id}-flash" style="position:absolute;left:90px;top:740px;width:900px;text-align:center;font-family:'Inter Tight',sans-serif;font-size:${size}px;font-weight:850;font-style:italic;line-height:1.02;letter-spacing:-3px;color:${brand.accent || "#F4E7A5"};text-shadow:0 0 36px rgba(244,231,165,.2);overflow-wrap:break-word">${esc(phrase)}</div></div>`;
@@ -1012,7 +1016,8 @@ if (cap.style !== "editorial" && cap.style !== "none" && !isTpl) {
   const wins = cap.onlyInScenes ? complement(shownCaps) : hiddenCaps;
   const merged = [];
   for (const [a, b] of [...wins].sort((x, y) => x[0] - y[0])) { if (merged.length && a <= merged.at(-1)[1] + 0.05) merged.at(-1)[1] = Math.max(merged.at(-1)[1], b); else merged.push([a, b]); }
-  tl.push(`tl.set("#caps", { autoAlpha: 1 }, 0);`);
+  const startsHidden = merged.some(([a, b]) => a <= 0.001 && b > 0);
+  tl.push(`tl.set("#caps", { autoAlpha: ${startsHidden ? 0 : 1} }, 0);`);
   for (const [a, b] of merged) { tl.push(`tl.set("#caps", { autoAlpha: 0 }, ${r3(a)});`); tl.push(`tl.set("#caps", { autoAlpha: 1 }, ${r3(b)});`); }
 }
 const edit = cap.style === "editorial" ? buildEditorialCaptions(words, cap, motionCtx, cap.onlyInScenes ? complement(shownCaps) : hiddenCaps) : null;
@@ -1147,7 +1152,7 @@ const html = `<!doctype html>
   .ec-title { font-size: 72px; font-weight: 800; letter-spacing: -1px; }
   .ec-line { font-size: 38px; font-weight: 500; margin-top: 12px; color: #333; }
   .ec-url { font-family: GeistMono, monospace; font-size: 30px; margin-top: 22px; color: #555; white-space: nowrap; }
-  #caps { position: absolute; left: 0; right: 0; top: 0; height: 0; }
+  #caps { position: absolute; left: 0; right: 0; top: 0; height: 0; ${hiddenCaps.some(([a, b]) => a <= 0.001 && b > 0) ? "opacity:0;visibility:hidden;" : ""} }
   .cap-group { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; max-width: ${W - 2 * placer.sidePad}px !important; text-align: center; line-height: 1.18; }
   .cap-backed { background: rgba(8,8,10,.55); border-radius: 20px; padding: 6px 22px; -webkit-text-stroke: 0 !important; }
   ${capCss}

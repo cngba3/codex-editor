@@ -235,7 +235,9 @@ async function processJob(job: Job, source: string, reference: string | undefine
     await run(process.execPath, [join(ghost, 'scripts', 'build.mjs'), directory])
     job.stage = 'Render MP4'; job.progress = 75
     const output = join(build, 'reel.mp4')
-    await run(process.execPath, [renderCli, 'render', '-o', output], { cwd: directory, job })
+    const plannedLength = Number((JSON.parse(readFileSync(join(build, 'build_report.json'), 'utf8')) as { total: number }).total)
+    const renderArgs = [renderCli, 'render', ...(process.platform === 'win32' && plannedLength > 30 ? ['--workers', '1'] : []), '-o', output]
+    await run(process.execPath, renderArgs, { cwd: directory, job })
     if (!existsSync(output) || statSync(output).size < 10000) throw new Error('Render không tạo được MP4 hợp lệ.')
     job.stage = 'Kiểm tra output'; job.progress = 99
     const normalized = join(build, 'reel-normalized.mp4')
