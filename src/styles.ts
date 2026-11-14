@@ -29,3 +29,36 @@ export const editStyles: EditStyle[] = [
   { id: 'launch', name: 'Launch', category: 'Preset', description: 'Cửa sổ UI tối, prompt đánh máy và các nhịp glitch.', visual: 'launch', tags: ['Sản phẩm', 'Công nghệ'] },
   { id: 'kinetic', name: 'Kinetic', category: 'Preset', description: 'Chữ toàn màn hình chuyển động theo từng lời nói.', visual: 'type', tags: ['Typography', 'Năng động'] },
 ]
+
+export type StyleDetails = { bestFor: string; preparation?: string }
+
+// Guidance derived from the style theses and "best for" notes in Ghost Editor.
+export const styleDetails: Record<string, StyleDetails> = {
+  'amber-talk': { bestFor: 'Video chia sẻ kiến thức, kinh nghiệm kinh doanh và lời khuyên trực diện.', preparation: 'Người nói trước máy quay; có thể thêm vài cảnh minh họa ngắn.' },
+  'clean-os': { bestFor: 'Giải thích ứng dụng, điện thoại, thói quen và ý tưởng gắn với trải nghiệm hằng ngày.' },
+  'result-podcast': { bestFor: 'Kể chuyện cá nhân, ký ức, góc nhìn và độc thoại kiểu podcast.' },
+  'face-result': { bestFor: 'Kể chuyện hoặc chia sẻ cảm xúc khi người nói xuất hiện xuyên suốt trong khung hình.' },
+  'caption-news': { bestFor: 'Tin nhanh, bình luận thời sự và nội dung cần nắm ý chính ngay cả khi tắt tiếng.', preparation: 'Nên có chủ đề rõ; ghi nguồn khi đề cập tin tức hoặc số liệu.' },
+  'whiteboard': { bestFor: 'Bài học, khái niệm và quy trình có thể giải thích bằng hình vẽ đơn giản.', preparation: 'Mỗi ý chính nên quy về được một hình vẽ dễ hiểu.' },
+  'kinetic-doc': { bestFor: 'Lịch sử, nhân vật, sự kiện hoặc câu chuyện cần chất phim tài liệu.', preparation: 'Hợp với lời dẫn đi cùng ảnh tư liệu hoặc cảnh minh họa.' },
+  'step-deck': { bestFor: 'Danh sách mẹo, hướng dẫn từng bước, checklist và bài học có thứ tự.' },
+  'seoul-list': { bestFor: 'Danh sách địa điểm, trải nghiệm du lịch, lifestyle và video dạng tổng hợp.', preparation: 'Cần cảnh minh họa phù hợp với từng mục trong danh sách.' },
+  'data-story': { bestFor: 'Phân tích, so sánh và câu chuyện xoay quanh số liệu hoặc xu hướng.', preparation: 'Chuẩn bị số liệu có nguồn xác thực; style không tự xác minh dữ kiện.' },
+  'explainer-vector': { bestFor: 'Ẩn dụ, bài học cuộc sống và ý tưởng trừu tượng có thể diễn giải bằng hình vẽ.', preparation: 'Phù hợp khi không có footage; hình ảnh được dựng thành minh họa vector.' },
+  'halftone-dossier': { bestFor: 'Phân tích một thói quen, sản phẩm, công cụ, nhân vật hoặc quan niệm như hồ sơ điều tra.' },
+  'hologram-hud': { bestFor: 'Giới thiệu hoặc giải thích một vật thể cụ thể như điện thoại, quyển sách hay công cụ.' },
+  'news-package': { bestFor: 'Một câu chuyện dạng bản tin, có khoảng 3–5 ý chính cần trình bày mạch lạc.' },
+  'pov-montage': { bestFor: 'Du lịch, vlog trải nghiệm, hoạt động thường ngày và chuyện kể từ góc nhìn thứ nhất.', preparation: 'Cần clip POV thực tế, chẳng hạn footage từ điện thoại, camera hành trình hoặc GoPro.' },
+  'product-page': { bestFor: 'Review hoặc demo một sản phẩm, ứng dụng, công cụ hay quyển sách cụ thể.', preparation: 'Nên có ảnh/tư liệu đúng sản phẩm để phần giới thiệu không bị chung chung.' },
+  'stan-style': { bestFor: 'Hướng dẫn thao tác trên ứng dụng, phần mềm hoặc website kèm người thuyết minh.', preparation: 'Cần bản quay màn hình đúng các thao tác được nói tới.' },
+  'swiss-grid': { bestFor: 'Bài nói có cấu trúc theo chương, luận điểm hoặc các ý cô đọng cần nhấn rõ.' },
+  'tactile-paper': { bestFor: 'Storytelling, lịch sử hoặc hành trình cá nhân kể qua ảnh và tư liệu như những trang hồ sơ.' },
+  'telestrator': { bestFor: 'Phân tích tình huống có vật thể hoặc hành động cụ thể như pha bóng, thiết bị hay giao diện.', preparation: 'Cần hình ảnh nhận diện được đối tượng để khoanh, vẽ mũi tên và chú thích.' },
+  'pop': { bestFor: 'Video thương hiệu cá nhân, lifestyle và những nhận định mạnh cần tạo điểm nhấn.' },
+  'clean': { bestFor: 'Lời khuyên, chia sẻ công việc và ý kiến trực diện cần dựng gọn, dễ theo dõi.' },
+  'editorial': { bestFor: 'Góc nhìn chuyên sâu, nghiên cứu mới, dữ liệu và các chủ đề cần dẫn dắt bằng đồ họa.' },
+  'meme': { bestFor: 'Giải trí, bình luận vui, phản ứng và câu chuyện có những nhịp gây cười.' },
+  'cinematic': { bestFor: 'Câu chuyện cá nhân, hành trình nhà sáng lập và những đoạn có chuyển biến cảm xúc.' },
+  'launch': { bestFor: 'Ra mắt sản phẩm hoặc AI, giới thiệu tính năng và demo trải nghiệm giao diện.' },
+  'kinetic': { bestFor: 'Câu trích dẫn, tuyên ngôn, câu mở đầu mạnh và danh sách có nhịp nói rõ ràng.' },
+}

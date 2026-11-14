@@ -1,6 +1,6 @@
 .app-shell.studio-app .sidebar{display:none}
 .app-shell.studio-app .main-area{width:100%;min-width:0;background:#111318}
-.app-shell.studio-app .topbar.editor-menu{height:62px;padding:0 14px;background:#191b20;border-bottom-color:#30323a;color:#e7e9ef;gap:14px}
+.app-shell.studio-app .topbar.editor-menu{height:62px;padding:0 20px;background:#191b20;border-bottom-color:#30323a;color:#e7e9ef;gap:16px}
 .editor-menu-content{display:flex;align-items:center;gap:16px;min-width:0;flex:1;overflow:hidden}
 .editor-menu-logo{display:block;flex:none;width:116px;height:32px;object-fit:contain;object-position:left center;mix-blend-mode:screen}
 .editor-menu-nav{display:flex;align-items:center;gap:3px;min-width:0;overflow-x:auto;scrollbar-width:none}
@@ -11,12 +11,12 @@
 .editor-menu-item.active{background:#2b3040;color:#d3d8ff}
 .editor-menu-item.active svg{color:#a5afff}
 .editor-menu .top-actions{gap:10px;flex:none}
-.studio-app .studio-page{display:flex;flex-direction:column;width:100%;max-width:none;height:calc(100vh - 62px);min-height:0;margin:0;padding:6px 8px 8px;overflow:hidden;color:#eceef3}
+.studio-app .studio-page{display:flex;flex-direction:column;width:100%;max-width:none;height:calc(100vh - 62px);min-height:0;margin:0;padding:0;overflow:hidden;color:#eceef3}
 .studio-app .workflow{display:none}
 .studio-app .workflow b{width:21px;height:21px;border-color:#414550;background:#20232a;color:#9ba1ae}
 .studio-app .workflow-active{color:#c3b2ff!important}
 .studio-app .workflow-active b{border-color:#9877da;background:#9877da;color:#fff}
-.editor-workspace{display:grid;grid-template-columns:170px 336px minmax(260px,1fr) 240px;flex:1;min-height:0;overflow:hidden;border:1px solid #2d3038;border-radius:7px;background:#14161b}
+.editor-workspace{display:grid;grid-template-columns:170px 336px minmax(260px,1fr) 240px;flex:1;min-height:0;overflow:hidden;border:0;border-radius:0;background:#14161b}
 .recent-history-panel,.editor-library-pane{min-width:0;min-height:0;overflow:auto;padding:12px 10px;background:#191b21;border-right:1px solid #2d3038;scrollbar-color:#3b3e48 transparent;scrollbar-width:thin}
 .editor-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:27px;margin:0 0 10px;color:#e4e6ec}
 .editor-panel-heading>div{display:flex;align-items:center;gap:7px;min-width:0;font:500 11px 'Inter',sans-serif;letter-spacing:0;white-space:nowrap}
@@ -53,25 +53,25 @@
 .editor-library-pane .mode-switch{width:100%;max-width:none;margin:0 0 10px;padding:3px;background:#202229;border-color:#30333c}
 .editor-library-pane .mode-switch button{gap:5px;padding:8px 5px;color:#9da2ae;font-size:9px}
 .editor-library-pane .mode-switch button.selected{background:#34303e;color:#d3c5ff;box-shadow:none}
-.editor-library-pane .style-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.editor-library-pane .style-card{display:flex;flex-direction:column;align-items:stretch;gap:5px;min-height:86px;padding:4px;border-color:#30333c;border-radius:6px;background:#202229;color:#e8eaf0}
+.editor-library-pane .style-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.editor-library-pane .style-card{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-height:126px;padding:6px;border-color:#30333c;border-radius:8px;background:#202229;color:#e8eaf0}
 .editor-library-pane .style-card:hover{border-color:#655785;background:#272932;transform:none}
 .editor-library-pane .style-card.selected{border-color:#9274ca;background:#292633;box-shadow:inset 2px 0 #a88ae7}
-.editor-library-pane .style-visual{width:100%;height:55px;flex:none;border-radius:4px}
-.editor-library-pane .style-visual .visual-word{font-size:12px}
-.editor-library-pane .style-visual .visual-line{bottom:8px}
+.editor-library-pane .style-visual{width:100%;height:82px;flex:none;border-radius:5px}
+.editor-library-pane .style-visual .visual-word{font-size:16px}
+.editor-library-pane .style-visual .visual-line{bottom:10px}
 .editor-library-pane .style-copy{display:grid;gap:2px;min-width:0;padding:0 2px}
-.editor-library-pane .style-copy strong{overflow:hidden;color:#e4e6ec;font-size:8px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
-.editor-library-pane .style-copy span{overflow:hidden;color:#9298a4;font-size:7px;text-overflow:ellipsis;white-space:nowrap}
+.editor-library-pane .style-copy strong{overflow:hidden;color:#e4e6ec;font-size:10px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.editor-library-pane .style-copy span{overflow:hidden;color:#9298a4;font-size:8px;text-overflow:ellipsis;white-space:nowrap}
 .editor-library-pane .style-copy[data-category*="ảnh minh họa"] span{display:none}
 .library-body[data-category*="ảnh minh họa"]>small{display:none}
-.editor-library-pane .style-check{top:5px;right:5px;width:14px;height:14px}
+.editor-library-pane .style-check{top:7px;right:7px;width:17px;height:17px}
 .editor-library-pane .recipe-assets,.editor-library-pane .reference-panel{margin-top:10px;padding:10px;border-color:#383b45;border-radius:7px;background:#202229;color:#d8dbe2}
 .editor-library-pane .recipe-assets p,.editor-library-pane .reference-drop span{color:#a3a8b3;font-size:9px;line-height:1.5}
 .editor-library-pane .supporting-upload,.editor-library-pane .reference-drop{color:#dfe2e8}
 .editor-library-pane .reference-drop{min-height:150px;padding:14px 10px;border-color:#484b56;background:#202229}
-.studio-main{display:grid;align-content:start;gap:12px;min-width:0;min-height:0;overflow:auto;padding:12px;background:#111318;scrollbar-color:#3b3e48 transparent;scrollbar-width:thin}
-.studio-main .surface{border:1px solid #2e323b;border-radius:8px;background:#1a1d24;color:#e8eaf0;box-shadow:none}
+.studio-main{display:grid;align-content:start;gap:0;min-width:0;min-height:0;overflow:auto;padding:0;background:#111318;scrollbar-color:#3b3e48 transparent;scrollbar-width:thin}
+.studio-main .surface{border:1px solid #2e323b;border-radius:0;background:#1a1d24;color:#e8eaf0;box-shadow:none}
 .studio-main .source-section,.studio-main .details-section{padding:9px}
 .studio-main .section-head{gap:8px;margin-bottom:7px}
 .studio-main .section-head h2{color:#edf0f5;font-size:12px;font-weight:600}
@@ -143,25 +143,26 @@
   .editor-menu-item{padding:8px 7px;font-size:10px}
 }
 @media(max-width:850px){
+  .app-shell.studio-app .topbar.editor-menu{padding:0 12px;gap:8px}
   .editor-workspace{grid-template-columns:140px 220px minmax(190px,1fr) 178px}
   .recent-project-copy small:first-of-type{display:none}
   .editor-menu .top-actions .local-badge,.editor-menu .top-actions .avatar{display:none}
 }
 @media(max-width:720px){
-  .app-shell.studio-app .topbar.editor-menu{height:56px;padding:0 8px;gap:6px}
+  .app-shell.studio-app .topbar.editor-menu{height:56px;padding:0 8px;gap:5px}
   .editor-menu-logo{width:75px;height:27px}
   .editor-menu-content{gap:6px}
   .editor-menu-nav{gap:1px}
   .editor-menu-item{gap:4px;padding:8px 6px;font-size:9px}
   .editor-menu-item svg{width:14px;height:14px}
   .editor-menu .codex-top-status{gap:0;padding:8px;font-size:0}
-  .app-shell.studio-app .studio-page{height:auto;min-height:calc(100vh - 56px);overflow:visible;padding:8px}
+  .app-shell.studio-app .studio-page{height:auto;min-height:calc(100vh - 56px);overflow:visible;padding:0}
   .studio-app .workflow{overflow:auto}
   .editor-workspace{display:flex;flex-direction:column;overflow:visible}
   .recent-history-panel{max-height:180px;border-right:0;border-bottom:1px solid #2d3038}
   .recent-project-list{grid-template-columns:repeat(2,minmax(0,1fr))}
   .editor-library-pane{max-height:360px;border-right:0;border-bottom:1px solid #2d3038}
-  .studio-main{overflow:visible;padding:10px}
+  .studio-main{overflow:visible;padding:0}
   .studio-main .upload-zone{height:180px;min-height:180px;max-height:180px}
   .studio-main .video-frame{min-height:220px;max-height:45vh}
   .studio-main .video-frame video{max-height:55vh}

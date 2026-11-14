@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { saveStyleRecipe } from './recipe-contract'
 
@@ -76,10 +76,28 @@ export async function studyReference(input: {
   const output = join(studyDir, 'style-study.json')
   onProgress?.('Codex tổng hợp công thức style', 29)
   if (!existsSync(output)) {
-    const prompt = `Create ONE reusable ghost-editor style from this reference study. Return JSON matching the schema. Do not simply select a preset: basePreset is only the nearest render foundation, while all style-specific choices must come from the edit log. Preserve recurring typography, caption position and grouping, pacing, transition and sound language. visualMotifs must describe concrete observed actions with their speech trigger and timing; an empty array is correct when the sample does not reveal them. Use only fonts listed in the schema; if the exact font is unavailable choose the closest and say so in limitations. headlineMode stepped means multi-line mixed-size staggered display text; big means one large headline; scene means full-screen cards; none means captions only. Pixel sizes refer to 1080x1920. Keep text readable on phones: captions >=40, headlines >=68. headlineStep is horizontal staircase shift in pixels. headlineSlant is degrees between -8 and 8. captionBackground must be CSS rgba(), #RRGGBB or transparent. mixedFonts is true only if the reference mixes display and serif faces. needsMatte is true only if text appears behind the cut-out speaker. Do not invent elements absent from the study. Do not use tools.\n\n${log.slice(0, 85000)}`
+    const prompt = `Create ONE reusable ghost-editor style from this reference study. Return JSON matching the schema. Write the name, about, visualRules, motionRules, soundRules, limitations, editRules, assetRules, recipeChecks and visualMotifs in natural Vietnamese with full diacritics. Keep only schema enum values, font names, color codes and technical identifiers in English. The name must be a short Vietnamese description of the visible look, not an English marketing title. Do not simply select a preset: basePreset is only the nearest render foundation, while all style-specific choices must come from the edit log. Preserve recurring typography, caption position and grouping, pacing, transition and sound language. visualMotifs must describe concrete observed actions with their speech trigger and timing; an empty array is correct when the sample does not reveal them. Use only fonts listed in the schema; if the exact font is unavailable choose the closest and say so in limitations. headlineMode stepped means multi-line mixed-size staggered display text; big means one large headline; scene means full-screen cards; none means captions only. Pixel sizes refer to 1080x1920. Keep text readable on phones: captions >=40, headlines >=68. headlineStep is horizontal staircase shift in pixels. headlineSlant is degrees between -8 and 8. captionBackground must be CSS rgba(), #RRGGBB or transparent. mixedFonts is true only if text appears behind the cut-out speaker. Do not invent elements absent from the study. Do not use tools.\n\n${log.slice(0, 85000)}`
     await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', output, '-'], { input: prompt })
   }
   const raw = JSON.parse(readFileSync(output, 'utf8')) as ReferenceStudy
+  if (!/[à-ỹđ]/i.test(`${raw.name} ${raw.about}`)) {
+    try {
+      const translatedPath = join(studyDir, 'style-display-vi.json')
+      if (!existsSync(translatedPath)) {
+        const prompt = `Translate this copied video style's name and short description into natural Vietnamese with full diacritics. Keep the visual meaning specific. Return only JSON with name and about. Name: ${raw.name}. Description: ${raw.about}. Do not translate font names or change the technical style data. No tools.`
+        await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(dirname(schema), 'reference-style-display-schema.json'), '-o', translatedPath, '-'], { input: prompt })
+      }
+      const localized = JSON.parse(readFileSync(translatedPath, 'utf8')) as { name: string; about: string }
+      if (localized.name?.trim() && localized.about?.trim() && /[à-ỹđ]/i.test(`${localized.name} ${localized.about}`)) {
+        raw.name = localized.name.trim()
+        raw.about = localized.about.trim()
+      }
+    } catch { /* Keep rendering if the optional translation request fails. */ }
+    if (!/[à-ỹđ]/i.test(`${raw.name} ${raw.about}`)) {
+      raw.name = `Phong cách video mẫu ${styleId.slice(-4)}`
+      raw.about = 'Phong cách được học từ video mẫu, gồm cách đặt chữ, màu sắc và nhịp dựng.'
+    }
+  }
   const study: ReferenceStudy = {
     ...raw,
     name: String(raw.name || `Style ${styleId}`).slice(0, 80), about: String(raw.about || '').slice(0, 500),
@@ -115,4 +133,15 @@ export function saveReferenceStyle(stylesDir: string, stored: StoredReferenceSty
   }
   writeFileSync(join(stylesDir, `${stored.id}.json`), JSON.stringify(preset, null, 2), 'utf8')
   saveStyleRecipe(dirname(stylesDir), stored.id)
+}
+
+export function saveReferencePreview(stylesDir: string, styleId: string, directory: string) {
+  const frameDir = join(directory, 'reference-study', 'frames')
+  if (!existsSync(frameDir)) return false
+  const frames = readdirSync(frameDir).filter(name => /^frame-\d+\.jpg$/.test(name)).sort()
+  if (!frames.length) return false
+  const previewDir = join(stylesDir, 'previews')
+  mkdirSync(previewDir, { recursive: true })
+  copyFileSync(join(frameDir, frames[Math.floor(frames.length * .4)]), join(previewDir, `${styleId}.jpg`))
+  return true
 }

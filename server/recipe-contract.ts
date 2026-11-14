@@ -29,6 +29,7 @@ export function recipeForStyle(ghost: string, id: string): Recipe {
   }
   const checks = ['Chữ tiếng Việt đầy đủ dấu, đọc được trên điện thoại', 'Không che khuôn mặt; giữ màu da như video nguồn', 'Nội dung và thời điểm chữ đúng lời nói', 'Không cắt hụt lời; hình và âm thanh khớp', 'Không có khung đen hoặc đứng hình ngoài chủ ý', 'Tuân thủ bố cục, nhịp và đặc trưng của recipe', 'Giọng rõ, SFX và nhạc không lấn giọng']
   checks.push(...(study?.recipeChecks || []))
+  if (study) checks.push('Chữ nhấn của style sao chép chỉ xuất hiện ở vài ý chính, tối đa khoảng một lần mỗi 10 giây; không chồng phụ đề, không dàn nhiều hàng khó đọc và phải có khoảng nghỉ giữa các lần nhấn.')
   const rendererFingerprint = digest(native ? [read(join(folder, `${native.module}.py`)), read(join(folder, 'house.json')), read(join(ghost, 'scripts/lib/facereel.py'))] : [read(join(ghost, 'scripts/build.mjs')), ...(id === 'amber-talk' ? [read(join(ghost, 'scripts/lib/amber-type.mjs'))] : [])])
   const data = { version: 1 as const, id, name: preset._reference?.name || id, engine: native ? 'native' as const : 'core' as const, source, rules, checks, limitations: study?.limitations || '', rendererFingerprint }
   return { ...data, fingerprint: digest(data) }

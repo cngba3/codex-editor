@@ -603,6 +603,10 @@ for (const b of beatsList) {
   let t1 = b.to === undefined ? (b.type === "endcard" ? TOTAL : t0 + (b.type === "meme" ? 1.8 : 2.5)) : E(b.to, `${b.type} to`);
   if (b.type === "scene" && beatsList.some((o) => o !== b && o.type === "scene" && ["expand", "wipe"].includes(o.in) && Math.abs(E(o.at) - t1) < 0.06)) t1 = r3(Math.min(TOTAL, t1 + HANDOVER));
   const dur = r3(t1 - t0);
+  // A copied style may use a headline in place of the spoken caption. Showing
+  // both layers makes the same words collide, especially on a talking head.
+  if (preset._reference && ["big", "chips", "strike", "quote", "list", "behind", "textfx", "type-composition", "type-connector"].includes(b.type))
+    hiddenCaps.push([t0, t1]);
   const inSlot = ["emoji", "logo", "meme"].includes(b.type);
   if (inSlot) {
     for (const [s, e] of slotUsed) if (t0 < e && t1 > s) warn.push(`reaction slot double-booked at ${b.at} (${b.type})`);

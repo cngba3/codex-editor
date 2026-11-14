@@ -1,0 +1,89 @@
+{
+  "_about": "Video người nói nền tối, từ khóa xanh chanh cỡ lớn, chữ trắng xếp lệch và đồ họa nhấn theo lời nói.",
+  "brand": {
+    "accent": "#D7FF55",
+    "accentDark": "#B93026",
+    "ink": "#262626",
+    "capSize": 64,
+    "font": "Inter Tight"
+  },
+  "captions": {
+    "style": "editorial",
+    "group": 3,
+    "y": 1010,
+    "font": "Inter Tight",
+    "size": 64,
+    "background": "transparent"
+  },
+  "sfxProfile": "restrained",
+  "music": {
+    "id": "auto",
+    "db": -21
+  },
+  "look": {},
+  "_reference": {
+    "id": "ref-b018836f",
+    "name": "Phỏng vấn nhấn chữ xanh chanh",
+    "about": "Video người nói nền tối, từ khóa xanh chanh cỡ lớn, chữ trắng xếp lệch và đồ họa nhấn theo lời nói.",
+    "basePreset": "editorial",
+    "study": {
+      "name": "Phỏng vấn nhấn chữ xanh chanh",
+      "about": "Video người nói nền tối, từ khóa xanh chanh cỡ lớn, chữ trắng xếp lệch và đồ họa nhấn theo lời nói.",
+      "basePreset": "editorial",
+      "accent": "#D7FF55",
+      "captionStyle": "editorial",
+      "captionFont": "Inter Tight",
+      "captionSize": 64,
+      "captionGroup": 3,
+      "captionY": 1010,
+      "captionBackground": "transparent",
+      "headlineMode": "stepped",
+      "headlineFont": "Inter Tight",
+      "headlineColor": "#D7FF55",
+      "supportColor": "#F5F4EE",
+      "serifColor": "#F5F4EE",
+      "mixedFonts": true,
+      "headlineSize": 145,
+      "headlineStep": 90,
+      "headlineSlant": 0,
+      "transition": "cut",
+      "zoom": "none",
+      "blackFlash": false,
+      "needsMatte": true,
+      "visualRules": "Keep the speaker centered in dark vertical footage. Place short, bold white phrases around much larger lime keywords, usually across the chest at y≈950–1220. Move text to y≈145–465 only for the observed upper-head layouts. Use the red strike and thin full-frame vertical stripes for the failing-content beat; a REC frame and dark red question bars for the recording-anxiety beat; translucent brown icon cards for the service list. Reserve a cream ring and foreground camera for relevant camera footage. Use a speaker matte when upper text passes behind the head.",
+      "motionRules": "Change text and overlays at spoken idea boundaries. Sampled frames show words being added and layouts being replaced, but do not establish entrance direction, easing, animation duration, or continuous zoom. Keep graphic positions steady while held. Use cuts as a conservative render choice where a transition is required.",
+      "soundRules": "Sync visuals to the supplied speech. Music, level, tempo, and sound effects are unverified; add no signature whoosh, pop, beep, or glitch sound based on the images alone.",
+      "limitations": "Inter Tight is the closest listed match to the observed heavy geometric sans; the exact font is unknown. Playfair Display is the closest listed option for the brief italic serif in the final value bar. One-second frame samples do not establish exact cut points, motion, zoom, or transition type. The sampled study does not establish audio treatment.",
+      "editRules": "Open on a direct problem statement over the centered speaker, dividing each clause into short white support text and one large lime keyword. Replace the phrase as the thought advances: prospects and value, then content failing. For the next objection, move text above the speaker and show camera-related imagery only when the speech turns to being on camera. Keep the same interview shot through uncertainty about what to say and revenue, using the REC frame and two question bars. Return to chest-level emphasis for the promise to take the work off the viewer’s plate. During the spoken service list, show PLAN, then PLAN/SHOOT/SCRIPT, then EDIT/POST cards. End the observed sequence with the olive value bar and the added word ‘working’. Select takes for clear speech and gestures; replace graphics on clause or list-item boundaries, with no fixed beat-length rule inferred from the samples.",
+      "assetRules": "Use a dark, centered vertical speaker take as the base. Insert the cream ring, microphone, and foreground camera only with a relevant camera setup; do not fabricate them over unrelated footage. Build the REC corners, warning and money bars, service cards, red strike, scanlines, and value bar as overlays when their corresponding speech beats occur. Cards need legible icons and labels. The final bar needs a speaker avatar crop. If a required camera shot, matte, icon, or avatar is unavailable, omit that specific motif and retain the speaker with readable white and lime text.",
+      "recipeChecks": [
+        "The opening uses dark, centered speaker footage with chest-level white support text and a substantially larger lime keyword.",
+        "The failing-content beat shows a red diagonal strike across ‘Content’ and thin vertical stripes across the frame.",
+        "The ‘You know content’ upper layout places text behind the speaker’s head.",
+        "The recording-anxiety section shows a REC corner frame followed by one, then two, dark red question bars.",
+        "The service list progresses from PLAN to three cards, then to EDIT and POST.",
+        "The final observed layout shows an olive value bar with avatar and italic serif ‘value...’, followed by ‘working’ above it.",
+        "No sound effect or precise entrance animation is treated as observed evidence."
+      ],
+      "visualMotifs": [
+        "On ‘prospects’ around 0–1 s, place a large lime ‘Prospects’ across the speaker’s chest while smaller white words accumulate around it; the exact reveal motion is unknown.",
+        "On ‘your content is failing’ around 3–4 s, retain the chest-level lime ‘Content’, add white ‘is failing’, cross ‘Content’ with a red diagonal stroke, and cover the frame with fine vertical stripes.",
+        "On ‘You know content matters’ around 5 s, shift large white and lime text to the top of the frame and let the speaker’s head occlude part of ‘content’.",
+        "On ‘being on camera stresses you out’ around 6–7 s, show the speaker within a cream ring beside foreground camera equipment, with the white and lime phrase above; the ring’s animation is unverified.",
+        "On ‘unsure of what to say’ through ‘real revenue’ around 9–14 s, hold white REC corners over the speaker, replace the large lime ‘You record’ with a dark red ‘what to say?’ bar, then add a second revenue question bar below.",
+        "On ‘We plan, shoot, script, edit, and post’ around 17–20 s, show PLAN at lower left, expand to a three-card PLAN/SHOOT/SCRIPT row, then replace it with larger EDIT/POST cards; the cards’ entrance motion is unknown."
+      ]
+    }
+  },
+  "composition": {
+    "font": "Inter Tight",
+    "color": "#D7FF55",
+    "supportColor": "#F5F4EE",
+    "serifColor": "#F5F4EE",
+    "mixedFonts": true,
+    "size": 145,
+    "step": 90,
+    "slant": 0
+  },
+  "matte": true
+}

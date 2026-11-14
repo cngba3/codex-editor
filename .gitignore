@@ -9,3 +9,5 @@ test-words.json
 .env.*
 !.env.example
 ghost-editor/.git.local-backup/
+__pycache__/
+*.pyc

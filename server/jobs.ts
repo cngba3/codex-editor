@@ -1,5 +1,5 @@
 import Busboy from 'busboy'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { copyFileSync, createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join, resolve, dirname, delimiter, basename } from 'node:path'
@@ -13,13 +13,14 @@ import { downloadStockIllustration, type StockImage } from './stock-images'
 import { chooseMusic } from './sound-direction'
 import { readTaste, recordFeedback, tastePrompt } from './taste-memory'
 import { alignTakeEdges, speechCandidates } from './speech-edit'
-import { listReferenceStyles, loadReferenceStyle, saveReferenceStyle, studyReference } from './reference-style'
+import { listReferenceStyles, loadReferenceStyle, saveReferencePreview, saveReferenceStyle, studyReference } from './reference-style'
+import { limitReferenceTypography } from './reference-typography'
 import { nativeRecipe, recipePrompt, saveStyleRecipe, type Recipe } from './recipe-contract'
 import { buildNative, prepareNative } from './native-pipeline'
 import { finishRecipe } from './recipe-quality'
 import { selectedModel } from './codex-model'
 
-type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
+type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
 const root = process.cwd()
 const jobsRoot = join(root, 'jobs')
 const ghost = join(root, 'ghost-editor')
@@ -30,14 +31,19 @@ const referenceStyleSchema = join(root, 'server', 'reference-style-schema.json')
 const amberSchema = join(root, 'server', 'amber-schema.json')
 // Vite reloads this module during development. Keep live jobs in the Node
 // process so a source edit cannot erase their status or admit a duplicate job.
-const shared = globalThis as typeof globalThis & { __aiEditorJobs?: { jobs: Map<string, Job>; busy: boolean } }
+const shared = globalThis as typeof globalThis & { __aiEditorJobs?: { jobs: Map<string, Job>; busy: boolean; children?: Map<string, Set<ChildProcess>>; cancelled?: Set<string> } }
 const state = shared.__aiEditorJobs ??= { jobs: new Map<string, Job>(), busy: false }
+state.children ??= new Map()
+state.cancelled ??= new Set()
 const jobs = state.jobs
 const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage'])
 const supportedStyle = (id: string) => supported.has(id) || !!nativeRecipe(id) || !!loadReferenceStyle(stylesDir, id)
 const executable = join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')
 const commandEnv = { ...process.env, PATH: [dirname(ffmpeg!), dirname(ffprobe.path), process.env.PATH].join(delimiter), HYPERFRAMES_FFMPEG_PATH: ffmpeg!, HYPERFRAMES_CLI_PATH: renderCli, GHOST_TASTE: join(jobsRoot, 'taste.json'), PYTHONUTF8: '1' }
 const activeModel = new AsyncLocalStorage<string>()
+const activeJob = new AsyncLocalStorage<Job>()
+class JobCancelledError extends Error { constructor() { super('Job cancelled'); this.name = 'JobCancelledError' } }
+const assertNotCancelled = (job: Job) => { if (state.cancelled!.has(job.id)) throw new JobCancelledError() }
 
 function json(response: ServerResponse, code: number, value: unknown) {
   response.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -53,9 +59,16 @@ function safeOrigin(request: IncomingMessage) {
 
 function run(command: string, args: string[], options: { cwd?: string; input?: string; job?: Job } = {}) {
   return new Promise<string>((resolveRun, reject) => {
+    const trackedJob = activeJob.getStore() || options.job
+    if (trackedJob && state.cancelled!.has(trackedJob.id)) { reject(new JobCancelledError()); return }
     const model = activeModel.getStore()
     const codexArgs = model && /^codex(?:\.exe)?$/i.test(basename(command)) && args[0] === 'exec' ? ['exec', '--model', model, ...args.slice(1)] : args
     const child = spawn(command, codexArgs, { cwd: options.cwd || root, env: commandEnv, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    if (trackedJob) {
+      const children = state.children!.get(trackedJob.id) || new Set<ChildProcess>()
+      children.add(child)
+      state.children!.set(trackedJob.id, children)
+    }
     let output = ''
     let tail = ''
     const onData = (chunk: Buffer) => {
@@ -63,15 +76,29 @@ function run(command: string, args: string[], options: { cwd?: string; input?: s
       output += value
       tail = (tail + value).slice(-8000)
       for (const match of value.matchAll(/@hf-progress\s+\{[^\n]+\}/g)) {
-        try { const progress = JSON.parse(match[0].replace('@hf-progress', '').trim()) as { pct?: number }; if (options.job && typeof progress.pct === 'number') options.job.progress = 75 + Math.round(progress.pct * .24) } catch { /* progress is advisory */ }
+        try { const progress = JSON.parse(match[0].replace('@hf-progress', '').trim()) as { pct?: number }; if (trackedJob && !state.cancelled!.has(trackedJob.id) && typeof progress.pct === 'number') trackedJob.progress = 75 + Math.round(progress.pct * .24) } catch { /* progress is advisory */ }
       }
     }
     child.stdout.on('data', onData)
     child.stderr.on('data', onData)
-    child.on('error', reject)
-    child.on('close', code => code === 0 ? resolveRun(output) : reject(new Error(`${command} exited ${code}: ${tail}`)))
+    child.on('error', error => reject(trackedJob && state.cancelled!.has(trackedJob.id) ? new JobCancelledError() : error))
+    child.on('close', code => {
+      if (trackedJob) state.children!.get(trackedJob.id)?.delete(child)
+      if (trackedJob && state.cancelled!.has(trackedJob.id)) reject(new JobCancelledError())
+      else if (code === 0) resolveRun(output)
+      else reject(new Error(`${command} exited ${code}: ${tail}`))
+    })
+    child.stdin.on('error', error => { if (!trackedJob || !state.cancelled!.has(trackedJob.id)) reject(error) })
     child.stdin.end(options.input || '')
   })
+}
+
+function stopProcessTree(child: ChildProcess) {
+  if (!child.pid || child.exitCode !== null) return
+  if (process.platform !== 'win32') { child.kill('SIGTERM'); return }
+  const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+  killer.on('error', () => child.kill())
+  killer.on('close', code => { if (code !== 0 && child.exitCode === null) child.kill() })
 }
 
 async function upload(request: IncomingMessage, directory: string) {
@@ -122,6 +149,7 @@ async function analyzeReference(reference: string, directory: string, seconds: n
     onProgress: (stage, progress) => { job.stage = stage; job.progress = progress },
   })
   if (!loadReferenceStyle(stylesDir, id)) saveReferenceStyle(stylesDir, stored)
+  saveReferencePreview(stylesDir, id, directory)
   job.style = stored.id
   job.createdStyleId = stored.id
   job.createdStyleName = stored.name
@@ -145,7 +173,7 @@ function speechVocabulary(notes: string) {
 }
 
 function processJob(job: Job, source: string, reference: string | undefined, notes: string) {
-  return activeModel.run(job.model || '', () => processJobCore(job, source, reference, notes))
+  return activeModel.run(job.model || '', () => activeJob.run(job, () => processJobCore(job, source, reference, notes)))
 }
 
 async function processJobCore(job: Job, source: string, reference: string | undefined, notes: string) {
@@ -312,6 +340,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       await prepareNative({ root, directory, ffmpeg: ffmpeg!, run, takes, words, title: plan.title || job.title, recipe })
       await finishRecipe({ root, directory, recipe, run: (command, args, options) => run(command, args, { ...options, job }), job,
         build: (round, feedback) => buildNative({ root, directory, recipe, codex: existsSync(executable) ? executable : 'codex.exe', run, round, feedback }) })
+      assertNotCancelled(job)
       job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
       return
     }
@@ -325,6 +354,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     }
     const transition = referenceStyle?.study.transition || (job.style === 'amber-talk' ? 'cut' : 'dissolve')
     if (takes.length > 1 && transition !== 'cut') spec.transitions = takes.slice(0, -1).map((_, i) => ({ after: i, type: transition === 'blur' ? 'zoom_blur' : transition === 'wipe' ? 'soft_wipe' : 'dissolve', dur: .2 }))
+    if (referenceStyle) spec.beats = limitReferenceTypography(spec.beats as { type?: string; at?: number; to?: number }[], takes)
     writeFileSync(join(directory, 'reel.json'), JSON.stringify(spec, null, 2), 'utf8')
     if (takes.length > 1 && spec.transitions) {
       job.stage = 'Tạo chuyển cảnh'; job.progress = 68
@@ -335,7 +365,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
         {
           const repaired = join(build, `core-repair-${round}.json`)
           await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/core-repair-schema.json'), '-o', repaired, '-'], {
-            input: `Direct or repair the editable beats/captions/zoom/music of this Ghost Editor reel. Return JSON strings of their complete replacement values, retaining original-source timestamps. Do not change the source, takes, words or style. Use only these existing assets: ${readdirSync(assets).filter(name => /\.(mp4|png|jpg|webm)$/.test(name)).join(', ')}. For Launch, include a short dark UI scene with kind=ui and a mono label tied to spoken content; use a device scene only if the spoken idea supports it. Keep each full-screen graphic at most 2.3 seconds, with visible changes every 1 second, and start the reel on a complete spoken thought. Mere cards or titles do not satisfy the Launch recipe. For Stan Style, use real support-N.mp4 screen recordings as panel beats, chest captions, hook and step labels timed to spoken words. For Explainer Vector, use 2-4 scene beats with kind=vector, spoken text, optional nodes (up to 3 exact spoken concepts), and shape rise/wave/fork; choose shapes to explain this video rather than repeating a fixed example. For POV Montage, preserve relevant broll beats using the supplied support clips. For a reference-derived style, derive new beat composition from the reference motion and visual rules, not just its base preset. Create video-specific beats and effects from the actual speech, keeping each effect purposeful. When a new diagram or metaphor would explain the spoken idea, use a scene with kind=component and an elements array (up to 12 data-only primitives): each element has type text/box/circle/line, x/y/w/h in 1080x1920 coordinates, optional x2/y2 for line, text from speech, #RRGGBB color, size 46-130, and delay seconds after the scene starts. Keep text outside the face and above the caption band. This creates a distinct component for this video without scripts. No scripts, remote URLs or invented text. Read these supported beat APIs:\n${readFileSync(join(ghost, 'references/reel-json.md'), 'utf8')}\n${recipePrompt(recipe)}\nCurrent spec: ${JSON.stringify(spec)}\nTranscript: ${JSON.stringify(words)}\nObserved failures: ${feedback.slice(-16000)}\nUse null for music_json to leave the existing music unchanged.`,
+            input: `Direct or repair the editable beats/captions/zoom/music of this Ghost Editor reel. Return JSON strings of their complete replacement values, retaining original-source timestamps. Do not change the source, takes, words or style. Use only these existing assets: ${readdirSync(assets).filter(name => /\.(mp4|png|jpg|webm)$/.test(name)).join(', ')}. For Launch, include a short dark UI scene with kind=ui and a mono label tied to spoken content; use a device scene only if the spoken idea supports it. Keep each full-screen graphic at most 2.3 seconds, with visible changes every 1 second, and start the reel on a complete spoken thought. Mere cards or titles do not satisfy the Launch recipe. For Stan Style, use real support-N.mp4 screen recordings as panel beats, chest captions, hook and step labels timed to spoken words. For Explainer Vector, use 2-4 scene beats with kind=vector, spoken text, optional nodes (up to 3 exact spoken concepts), and shape rise/wave/fork; choose shapes to explain this video rather than repeating a fixed example. For POV Montage, preserve relevant broll beats using the supplied support clips. For a reference-derived style, derive new beat composition from the reference motion and visual rules, not just its base preset. Keep prominent text selective: about one text beat per 10 seconds, at most two short lines, no repeated wording, and at least 2.5 seconds of quiet footage between text beats. Never place a caption and a graphic headline on screen at the same time. Create video-specific beats and effects from the actual speech, keeping each effect purposeful. When a new diagram or metaphor would explain the spoken idea, use a scene with kind=component and an elements array (up to 12 data-only primitives): each element has type text/box/circle/line, x/y/w/h in 1080x1920 coordinates, optional x2/y2 for line, text from speech, #RRGGBB color, size 46-130, and delay seconds after the scene starts. Keep text outside the face and above the caption band. This creates a distinct component for this video without scripts. No scripts, remote URLs or invented text. Read these supported beat APIs:\n${readFileSync(join(ghost, 'references/reel-json.md'), 'utf8')}\n${recipePrompt(recipe)}\nCurrent spec: ${JSON.stringify(spec)}\nTranscript: ${JSON.stringify(words)}\nObserved failures: ${feedback.slice(-16000)}\nUse null for music_json to leave the existing music unchanged.`,
           })
           const fix = JSON.parse(readFileSync(repaired, 'utf8'))
           const newBeats = JSON.parse(fix.beats_json)
@@ -343,7 +373,8 @@ async function processJobCore(job: Job, source: string, reference: string | unde
           if (job.style === 'pov-montage' && !newBeats.some((beat: { type: string }) => beat.type === 'broll')) throw new Error('POV Montage phải giữ ít nhất một cảnh POV thật.')
           if (job.style === 'explainer-vector' && !newBeats.some((beat: { type: string; kind?: string }) => beat.type === 'scene' && beat.kind === 'vector')) throw new Error('Explainer Vector phải có cảnh vector được vẽ theo lời nói.')
           if (job.style === 'launch' && !newBeats.some((beat: { type: string; kind?: string }) => beat.type === 'scene' && beat.kind === 'ui')) throw new Error('Launch requires a dark UI scene tied to the spoken content.')
-          spec.beats = newBeats; spec.captions = JSON.parse(fix.captions_json); spec.zoom = JSON.parse(fix.zoom_json)
+          spec.beats = referenceStyle ? limitReferenceTypography(newBeats, takes) : newBeats
+          spec.captions = JSON.parse(fix.captions_json); spec.zoom = JSON.parse(fix.zoom_json)
           writeFileSync(join(build, 'video-components.json'), JSON.stringify(newBeats.filter((beat: { type?: string; kind?: string }) => beat.type === 'scene' && beat.kind === 'component'), null, 2), 'utf8')
           const fixedMusic = JSON.parse(fix.music_json?.trim() || 'null')
           if (fixedMusic !== null) {
@@ -359,10 +390,15 @@ async function processJobCore(job: Job, source: string, reference: string | unde
         }
         await run(process.execPath, [join(ghost, 'scripts', 'build.mjs'), directory])
       } })
+    assertNotCancelled(job)
     job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
     writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
   } catch (error) {
-    job.status = 'error'; job.stage = 'Lỗi'; job.error = error instanceof Error ? error.message.slice(-1200) : 'Lỗi không xác định.'
+    if (state.cancelled!.has(job.id) || error instanceof JobCancelledError) {
+      job.status = 'cancelled'; job.stage = 'Đã hủy'; job.cancelRequested = false; delete job.error
+    } else {
+      job.status = 'error'; job.stage = 'Lỗi'; job.error = error instanceof Error ? error.message.slice(-1200) : 'Lỗi không xác định.'
+    }
   } finally {
     const now = Date.now()
     if (job.startedAt) job.elapsedMs = (job.elapsedMs || 0) + Math.max(0, now - job.startedAt)
@@ -370,6 +406,8 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     clearInterval(heartbeat)
     writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
     state.busy = false
+    state.children!.delete(job.id)
+    state.cancelled!.delete(job.id)
   }
 }
 
@@ -394,6 +432,20 @@ function findJob(id: string): Job | undefined {
       saved.status = 'error'; saved.stage = 'Bị gián đoạn'; saved.error = 'Server đã dừng trong khi dựng. Có thể chạy lại job và dùng dữ liệu đã xử lý.'
       writeFileSync(file, JSON.stringify(saved, null, 2), 'utf8')
     }
+    if (saved.status === 'error' && saved.error?.startsWith('Chưa đạt kiểm tra sau 3 vòng sửa.')) {
+      const output = join(jobsRoot, id, 'build', 'reel.mp4')
+      const quality = join(jobsRoot, id, 'build', 'quality.json')
+      if (existsSync(output) && existsSync(quality) && statSync(output).size > 0) {
+        saved.status = 'done'
+        saved.stage = 'Hoàn tất · cần xem lại chất lượng'
+        saved.progress = 100
+        saved.output = `/api/jobs/${id}/output`
+        saved.warning = [saved.warning, saved.error].filter(Boolean).join(' ')
+        saved.completedAt ||= statSync(output).mtimeMs
+        delete saved.error
+        writeFileSync(file, JSON.stringify(saved, null, 2), 'utf8')
+      }
+    }
     return saved
   } catch { return current }
 }
@@ -414,6 +466,20 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
     json(response, 200, history)
     return
   }
+  const stylePreviewMatch = path.match(/^\/api\/styles\/(ref-[a-f0-9]{8})\/preview$/)
+  if (stylePreviewMatch && request.method === 'GET') {
+    const id = stylePreviewMatch[1]
+    if (!loadReferenceStyle(stylesDir, id)) { json(response, 404, { error: 'Style không tồn tại.' }); return }
+    const preview = join(stylesDir, 'previews', `${id}.jpg`)
+    if (!existsSync(preview) && existsSync(jobsRoot)) {
+      const sourceJob = readdirSync(jobsRoot, { withFileTypes: true }).find(entry => entry.isDirectory() && entry.name.startsWith(id.slice(4)))
+      if (sourceJob) saveReferencePreview(stylesDir, id, join(jobsRoot, sourceJob.name))
+    }
+    if (!existsSync(preview)) { json(response, 404, { error: 'Chưa có ảnh bìa style.' }); return }
+    response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' })
+    createReadStream(preview).pipe(response)
+    return
+  }
   if (path === '/api/styles' && request.method === 'GET') {
     json(response, 200, listReferenceStyles(stylesDir).map(style => ({ id: style.id, name: style.name, description: style.about, category: 'Style từ video mẫu', visual: 'reference', tags: ['Video mẫu', 'Recipe riêng'], limitations: style.study.limitations, recipeVersion: saveStyleRecipe(ghost, style.id).fingerprint })))
     return
@@ -422,6 +488,22 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
   if (recipeMatch && request.method === 'GET') {
     if (!supportedStyle(recipeMatch[1])) { json(response, 404, { error: 'Recipe chưa hỗ trợ đầu vào hiện tại.' }); return }
     json(response, 200, saveStyleRecipe(ghost, recipeMatch[1])); return
+  }
+  const cancelMatch = path.match(/^\/api\/jobs\/([a-f0-9-]+)\/cancel$/)
+  if (cancelMatch && request.method === 'POST') {
+    if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    const job = jobs.get(cancelMatch[1])
+    if (!job || job.status !== 'running') { json(response, 409, { error: 'Job này không còn đang chạy.' }); return }
+    if (!job.cancelSupported) { json(response, 409, { error: 'Job này bắt đầu trước khi có tính năng hủy.' }); return }
+    if (!job.cancelRequested) {
+      state.cancelled!.add(job.id)
+      job.cancelRequested = true
+      job.stage = 'Đang hủy video'
+      writeFileSync(join(jobsRoot, job.id, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
+      for (const child of state.children!.get(job.id) || []) stopProcessTree(child)
+    }
+    json(response, 202, job)
+    return
   }
   const retryMatch = path.match(/^\/api\/jobs\/([a-f0-9-]+)\/retry$/)
   if (retryMatch && request.method === 'POST') {
@@ -432,7 +514,7 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
     const source = join(directory, 'source.mp4')
     if (!previous || previous.status !== 'error' || !existsSync(source)) { json(response, 404, { error: 'Không tìm thấy job lỗi có video nguồn.' }); return }
     state.busy = true
-    const job: Job = { ...previous, model: selectedModel(), startedAt: Date.now(), completedAt: undefined, stage: 'Chạy lại bộ dựng', progress: 1, status: 'running' }
+    const job: Job = { ...previous, model: selectedModel(), startedAt: Date.now(), completedAt: undefined, stage: 'Chạy lại bộ dựng', progress: 1, status: 'running', cancelSupported: true, cancelRequested: false }
     delete job.error
     delete job.warning
     jobs.set(job.id, job)
@@ -469,7 +551,7 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
       }
       for (const file of readdirSync(join(parentDir, 'assets')).filter(name => /^support-[1-6]\.mp4$/.test(name))) copyFileSync(join(parentDir, 'assets', file), join(directory, 'assets', file))
       if (existsSync(join(parentDir, 'assets/supporting.json'))) copyFileSync(join(parentDir, 'assets/supporting.json'), join(directory, 'assets/supporting.json'))
-      const job: Job = { id, createdAt: startedAt, startedAt, stage: 'Đã nhận video', progress: 1, status: 'running', title: parent.title, style: parent.style, kind: 'full', parentId: parent.id, notes: parent.notes || '', model: selectedModel() }
+      const job: Job = { id, createdAt: startedAt, startedAt, stage: 'Đã nhận video', progress: 1, status: 'running', cancelSupported: true, title: parent.title, style: parent.style, kind: 'full', parentId: parent.id, notes: parent.notes || '', model: selectedModel() }
       jobs.set(id, job)
       json(response, 202, job)
       void processJob(job, source, reference, job.notes || '')
@@ -518,7 +600,7 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
       if (data.style === 'reference' && !data.reference) throw new Error('Hãy thêm video mẫu trước khi dựng.')
       if (data.style !== 'reference' && !supportedStyle(data.style)) throw new Error('Style đã chọn chưa được nối với bộ dựng.')
       if (['stan-style', 'seoul-list', 'pov-montage'].includes(data.style) && !existsSync(join(directory, 'assets/support-1.mp4'))) throw new Error(data.style === 'stan-style' ? 'Stan Style cần bản quay màn hình thật. Hãy thêm video bổ sung.' : data.style === 'pov-montage' ? 'POV Montage cần video góc nhìn thứ nhất bổ sung.' : 'Seoul List cần footage/B-roll theo lời nói. Hãy thêm video bổ sung.')
-      const job: Job = { id, createdAt: startedAt, startedAt, stage: 'Đã nhận video', progress: 1, status: 'running', title: data.title, style: data.style, kind: data.kind, notes: data.notes, model: selectedModel() }
+      const job: Job = { id, createdAt: startedAt, startedAt, stage: 'Đã nhận video', progress: 1, status: 'running', cancelSupported: true, title: data.title, style: data.style, kind: data.kind, notes: data.notes, model: selectedModel() }
       jobs.set(id, job)
       json(response, 202, job)
       void processJob(job, data.source, data.reference, data.notes)

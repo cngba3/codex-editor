@@ -1,9 +1,10 @@
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
 
-type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
+type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string }
+const isJobCancelled = (error: unknown) => error instanceof Error && error.name === 'JobCancelledError'
 export async function finishRecipe(input: {
   root: string; directory: string; recipe: Recipe; run: Runner; job: QualityJob
   build: (round: number, feedback: string) => Promise<void>
@@ -14,6 +15,7 @@ export async function finishRecipe(input: {
   const previousFailure = join(directory, 'build', 'repair-2.txt')
   let feedback = existsSync(previousFailure) ? readFileSync(previousFailure, 'utf8').slice(-16000) : ''
   let failureSummary = ''
+  let renderedOutput = false
   job.recipe = recipe.name; job.recipeVersion = recipe.fingerprint
   for (let round = 0; round < 3; round++) {
     job.qualityRound = round + 1
@@ -42,15 +44,16 @@ export async function finishRecipe(input: {
       job.stage = `Render MP4 · vòng ${round + 1}/3`; job.progress = 84
       await run('uv', [...pythonArgs, finals, 'render', '--batch', manifest, '--no-nomusic'])
       const final = join(finalsDir, 'reel.mp4')
-      if (!existsSync(final)) throw new Error('Ghost Editor không tạo được bản xuất cuối.')
+      if (!existsSync(final) || statSync(final).size === 0) throw new Error('Ghost Editor không tạo được bản xuất cuối.')
       copyFileSync(final, output)
+      renderedOutput = true
       job.stage = 'Kiểm tra hình, âm thanh và recipe'; job.progress = 94
       const report = join(directory, 'build', `render-report-${round}.json`)
       let technicalFailure = ''
       try {
         await run('uv', [...pythonArgs, join(root, 'server/recipe-audio.py'), directory])
         await run('uv', [...pythonArgs, join(root, 'ghost-editor/scripts/render_report.py'), directory, output, '--style', recipe.id, '--stem', join(directory, 'build/sfx-stem.wav'), '--out', report, '--no-html', ...(recipe.id === 'seoul-list' ? ['--broll-profile', 'broll-led'] : [])])
-      } catch (error) { technicalFailure = error instanceof Error ? error.message : String(error) }
+      } catch (error) { if (isJobCancelled(error)) throw error; technicalFailure = error instanceof Error ? error.message : String(error) }
       if (!existsSync(report)) throw new Error(`Không tạo được báo cáo QA: ${technicalFailure}`)
       const reportText = readFileSync(report, 'utf8')
       job.qa = reportText.slice(-12000)
@@ -62,10 +65,15 @@ export async function finishRecipe(input: {
       failureSummary = (qa.checks || []).filter(check => check.status === 'fail').map(check => `${check.id || 'QA'}: ${String(check.value ?? 'không đạt')}`).join('; ') || technicalFailure || 'Báo cáo QA chưa đạt.'
       feedback = `TECHNICAL: ${technicalFailure}\nREPORT: ${reportText}`
     } catch (error) {
+      if (isJobCancelled(error)) throw error
       feedback = error instanceof Error ? error.message : String(error)
       failureSummary = feedback.split(/\r?\n/)[0].slice(0, 350)
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }
-  throw new Error(`Chưa đạt kiểm tra sau 3 vòng sửa. ${failureSummary} Bản dựng đã lưu trong thư mục job.`)
+  if (renderedOutput && existsSync(output) && statSync(output).size > 0) {
+    job.warning = [job.warning, `Bản dựng đã xuất; QA chưa đạt sau 3 vòng: ${failureSummary}`].filter(Boolean).join(' ')
+    return output
+  }
+  throw new Error(`Không tạo được MP4 sau 3 vòng dựng. ${failureSummary}`)
 }
