@@ -1,6 +1,8 @@
 .render-button { margin-top: 9px; background: #241b32; }
 .render-button:disabled { opacity: .6; }
 .render-status { margin-top: 14px; padding: 12px; border-radius: 9px; background: #f5f1fa; color: #3a2d49; font-size: 11px; }
+.render-context { margin-bottom: 8px; color: #755a99; font-size: 10px; font-weight: 800; overflow-wrap: anywhere; }
+.render-empty { margin-top: 14px; padding: 11px; border: 1px dashed #d9cbea; border-radius: 9px; background: #faf8fd; color: #7e6c94; font-size: 10px; line-height: 1.5; }
 .render-status strong { display: inline-block; margin-right: 8px; }
 .render-status span { color: #8c6caf; }
 .render-status p { margin: 8px 0 0; line-height: 1.5; overflow-wrap: anywhere; color: #a74a4a; }
@@ -17,4 +19,47 @@
 .recipe-tile span, .recipe-tile small { color: #9890a0; font-size: 9px; }
 .recipe-tile small { margin-top: auto; }
 .library-card button:disabled { opacity: .65; }
+.style-visual.has-preview, .library-visual.has-preview { background: #18171c; }
+.style-visual.has-preview { height: 142px; }
+.preview-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(13px) brightness(.5); transform: scale(1.1); }
+.style-preview-image, .library-preview-image { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; }
+.poster-preview-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.poster-inner:has(.poster-preview-image)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, #141119a8); }
+.poster-inner .poster-title { position: absolute; z-index: 2; bottom: 29px; width: 100%; padding: 0 7px; color: #fff; font: 800 11px 'Inter',sans-serif; text-align: center; text-shadow: 0 1px 4px #000a; }
+.poster-inner .poster-play { z-index: 2; }
+.poster-inner .poster-preview-image ~ small { z-index: 2; color: #fff; }
+.history-refresh { display: flex; align-items: center; gap: 7px; border: 1px solid #e5deee; border-radius: 9px; background: #fff; color: #7556ac; padding: 10px 13px; font-size: 11px; font-weight: 800; }
+.history-refresh:disabled { opacity: .55; }
+.history-message { padding: 20px; border: 1px solid #eae5f0; border-radius: 12px; background: #fff; color: #777182; font-size: 12px; }
+.history-player { padding: 20px; margin-bottom: 29px; }
+.history-player-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 17px; }
+.history-player-head small { color: #9875d3; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.history-player-head h2 { margin: 5px 0; font-size: 19px; }
+.history-player-head p { margin: 0; color: #918b9b; font-size: 11px; }
+.history-player-head .history-render-time { margin-top: 7px; color: #7556ac; }
+.history-render-time strong { font-weight: 800; }
+.history-player-head a, .history-card-body a { display: inline-flex; align-items: center; gap: 6px; color: #7652b2; font-size: 11px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.history-player video { display: block; width: min(100%, 360px); max-height: 520px; margin: 0 auto; border-radius: 10px; background: #17131e; }
+.history-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.history-list-head h2 { margin: 0; font-size: 17px; }
+.history-list-head span { color: #9993a3; font-size: 11px; }
+.history-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.history-card { min-width: 0; overflow: hidden; border: 1px solid #ece8f1; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px #20202c05; }
+.history-card.selected { border-color: #ad8adf; box-shadow: 0 0 0 2px #c9b3ef42; }
+.history-card-cover { height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #c6aff0; background: linear-gradient(145deg, #2b233b, #171923); }
+.history-card-cover span { color: #e7dafa; font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.history-card-body { padding: 15px; }
+.history-card-body h3 { margin: 0 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.history-card-body p { margin: 0 0 16px; color: #958f9d; font-size: 10px; }
+.history-card-body > div { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; }
+.history-card-body button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #7652b2; padding: 0; font-size: 11px; font-weight: 800; }
+.history-card-body button[aria-pressed="true"] { color: #4b2a85; }
+@media (max-width: 980px) { .history-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .history-grid { grid-template-columns: 1fr; } .history-player-head { flex-direction: column; } }
+.recipe-assets { margin-top: 22px; padding: 18px; border: 1px solid #e8e3ec; border-radius: 12px; background: #faf9fc; }
+.recipe-assets strong { color: #342943; font-size: 13px; }
+.recipe-assets p { margin: 8px 0 12px; color: #77717f; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.recipe-assets input { width: 100%; color: #77717f; font-size: 12px; }
+.recipe-assets input::file-selector-button, .recipe-assets button { padding: 9px 12px; margin-right: 10px; border: 1px solid #d9cce8; border-radius: 8px; color: #634482; background: white; font: inherit; cursor: pointer; }
 @media (max-width: 720px) { .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.feedback-box{border-top:1px solid #eee9f3;margin-top:14px;padding-top:14px;display:grid;gap:8px}.feedback-box strong{font-size:11px}.feedback-box textarea{width:100%;min-height:65px;resize:vertical;border:1px solid #e5deec;border-radius:8px;padding:9px;font:inherit;font-size:11px;color:#40364a}.feedback-box>div{display:flex;gap:7px}.feedback-box button{border:1px solid #bca8df;background:#f5f0fc;color:#69499f;border-radius:7px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.feedback-box button:disabled{opacity:.5;cursor:default}.feedback-box small{color:#548e66}

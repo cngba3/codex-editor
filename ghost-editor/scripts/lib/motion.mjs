@@ -51,23 +51,23 @@ export const MOTION_CSS = (brand) => `
   .xw { position: relative; display: inline-block; }
   .xw svg { position: absolute; left: 50%; top: 50%; width: 120px; height: 90px; margin: -45px 0 0 -60px; overflow: visible; }
   /* ui window (launch) */
-  .ui-win { position: absolute; left: 70px; right: 70px; border-radius: 30px; background: #15151b; border: 1.5px solid rgba(255,255,255,.1); box-shadow: 0 40px 90px rgba(0,0,0,.55), 0 0 120px ${brand.accent}33; overflow: hidden; }
+  .ui-win { position: absolute; left: 70px; right: 70px; border-radius: 30px; background: #15151b; border: 3px solid ${brand.accent}88; box-shadow: 0 40px 90px rgba(0,0,0,.55), 0 0 120px ${brand.accent}33; overflow: hidden; }
   .ui-bar { height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 26px; border-bottom: 1px solid rgba(255,255,255,.08); color: rgba(255,255,255,.55); font-family: ${brand.mono ? `"${brand.mono}", ` : ""}ui-monospace, monospace; font-size: 24px; }
   .ui-bar i { width: 16px; height: 16px; border-radius: 50%; background: #3a3a44; display: inline-block; }
   .ui-bar b { margin-left: 14px; font-weight: 500; }
   .ui-body { padding: 34px 40px 40px; }
-  .ui-prompt { font-family: ${brand.mono ? `"${brand.mono}", ` : ""}ui-monospace, monospace; font-size: 42px; line-height: 1.3; color: #fff; white-space: pre-wrap; min-height: 60px; }
+  .ui-prompt { font-family: ${brand.mono ? `"${brand.mono}", ` : ""}ui-monospace, monospace; font-size: 72px; line-height: 1.2; color: #fff; white-space: pre-wrap; min-height: 88px; }
   .ui-prompt .pr { color: ${brand.accent}; margin-right: 18px; }
-  .ui-caret { display: inline-block; width: 20px; height: 46px; background: ${brand.accent}; vertical-align: -8px; margin-left: 4px; }
-  .ui-line { font-size: 40px; color: rgba(255,255,255,.88); margin-top: 22px; display: flex; gap: 18px; align-items: center; }
+  .ui-caret { display: inline-block; width: 20px; height: 65px; background: ${brand.accent}; vertical-align: -8px; margin-left: 4px; }
+  .ui-line { font-size: 64px; color: rgba(255,255,255,.96); margin-top: 22px; display: flex; gap: 18px; align-items: center; }
   .ui-line .ck { width: 40px; height: 40px; border-radius: 50%; background: ${brand.accent}; color: ${brand.onAccent || "#fff"}; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; flex: none; }
-  .ui-label { position: absolute; left: 0; right: 0; text-align: center; font-family: ${brand.mono ? `"${brand.mono}", ` : ""}ui-monospace, monospace; font-size: 30px; letter-spacing: 6px; text-transform: uppercase; color: ${brand.accent}; }
+  .ui-label { position: absolute; left: 0; right: 0; text-align: center; font-family: ${brand.mono ? `"${brand.mono}", ` : ""}ui-monospace, monospace; font-size: 72px; letter-spacing: 4px; text-transform: uppercase; color: ${brand.accent}; }
   /* device (launch) */
-  .dev { position: absolute; left: 50%; width: 480px; height: 980px; margin-left: -240px; border-radius: 72px; background: #0b0b0e; border: 14px solid #1d1d22; box-shadow: 0 50px 110px rgba(0,0,0,.55), inset 0 0 0 2px #2c2c33; overflow: hidden; }
+  .dev { position: absolute; left: 50%; width: 600px; height: 1080px; margin-left: -300px; border-radius: 72px; background: #0b0b0e; border: 14px solid #1d1d22; box-shadow: 0 50px 110px rgba(0,0,0,.55), inset 0 0 0 2px #2c2c33; overflow: hidden; }
   .dev::before { content: ""; position: absolute; top: 18px; left: 50%; width: 130px; height: 36px; margin-left: -65px; border-radius: 20px; background: #000; z-index: 2; }
   .dev img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .dev .scr { position: absolute; inset: 0; padding: 110px 34px 40px; color: #fff; }
-  .dev .scr div { font-size: 34px; line-height: 1.25; margin-bottom: 18px; padding: 18px 22px; border-radius: 22px; background: rgba(255,255,255,.08); }
+  .dev .scr div { font-size: 52px; line-height: 1.2; margin-bottom: 18px; padding: 18px 22px; border-radius: 22px; background: rgba(255,255,255,.11); }
   .dev .scr div.me { background: ${brand.accent}; margin-left: 60px; }
   /* kinetic type */
   .kin-world { position: absolute; left: 0; top: 0; width: 960px; transform-origin: 0 0; }
@@ -119,7 +119,7 @@ export function buildScene(b, id, t0, t1, ctx) {
   const { tl, E, r3, esc, addSfx, brand, userAsset, words } = ctx;
   const sid = `${id}-sc`;
   let body = "";
-  const bg = b.bg === "accent" ? `linear-gradient(135deg, ${brand.accentDark} 0%, ${brand.accent} 55%, ${brand.accentDark} 100%)` : (b.bg || "#fff");
+  const bg = b.bg === "accent" ? `linear-gradient(135deg, ${brand.accentDark} 0%, ${brand.accent} 55%, ${brand.accentDark} 100%)` : (b.bg || (ctx.style === "launch" ? "#0E0E12" : "#fff"));
   const inKind = b.in ?? "blur", outKind = b.out ?? "blur";
   let customBg = null;
   // Paper shader background: {"look": "..."} or {"shader": "...", preset, params, speed}
@@ -156,7 +156,8 @@ export function buildScene(b, id, t0, t1, ctx) {
       tl.push(`ft("#${id}-ring", { autoAlpha: 0.9, scale: 0.35 }, { autoAlpha: 0, scale: 1.25, duration: 0.5, ease: "power2.out" }, ${ca});`);
       addSfx(ca, "click-1", "cursor click", { db: 4 });
     }
-    body = `<div class="col" style="top:${b.y ?? 860}px">${lines}${pill}</div>${extra}`;
+    body = `<div id="${id}-card-world" style="position:absolute;inset:0;transform-origin:50% 50%"><div class="col" style="top:${b.y ?? 860}px">${lines}${pill}</div>${extra}</div>`;
+    tl.push(`ft("#${id}-card-world", { scale: .96, y: 18 }, { scale: 1.04, y: -18, duration: ${r3(t1 - t0)}, ease: "none" }, ${t0});`);
   }
 
   else if (b.kind === "stats") {
@@ -201,6 +202,58 @@ export function buildScene(b, id, t0, t1, ctx) {
     tl.fromTo(P, { z: ${cam.from} }, { z: ${cam.to}, duration: ${r3(t1 - t0)}, ease: "${b.ease ?? "sine.inOut"}", onUpdate: paint, immediateRender: false }, ${t0}); })();`);
     addSfx(t0, "riser-1", "fly3d riser", { db: -2 });
     for (const it of items.slice(1)) addSfx(it.at, "whoosh", "fly3d word", { db: -6 });
+  }
+
+  else if (b.kind === "component") {
+    // Per-video component DSL. The model supplies data, never executable HTML
+    // or JavaScript; this renderer owns all markup and seek-safe motion.
+    const pick = (n, lo, hi, fallback) => Number.isFinite(Number(n)) ? Math.max(lo, Math.min(hi, Number(n))) : fallback;
+    const color = (c) => /^#[0-9a-f]{6}$/i.test(String(c || "")) ? c : brand.accent;
+    const items = Array.isArray(b.elements) ? b.elements.slice(0, 12) : [];
+    body = `<div style="position:absolute;inset:0;background:${typeof b.bg === "string" && /^#[0-9a-f]{6}$/i.test(b.bg) ? b.bg : "#141a23"}">${items.map((item, i) => {
+      const type = ["text", "box", "circle", "line"].includes(item.type) ? item.type : "text";
+      const x = pick(item.x, 40, 1000, 120), y = pick(item.y, 160, 1700, 700), w = pick(item.w, 80, 980, 500), h = pick(item.h, 20, 600, 150);
+      const at = r3(t0 + pick(item.delay, 0, Math.max(.1, t1 - t0 - .1), i * .15));
+      const sel = `#${id}-el${i}`;
+      if (type === "line") {
+        const x2 = pick(item.x2, 40, 1040, x + w), y2 = pick(item.y2, 100, 1800, y);
+        tl.push(`ft("${sel}", { attr: { "stroke-dashoffset": 1 } }, { attr: { "stroke-dashoffset": 0 }, duration: .55, ease: "power2.out" }, ${at});`);
+        return `<svg viewBox="0 0 1080 1920" width="1080" height="1920" style="position:absolute;inset:0"><path id="${id}-el${i}" d="M ${x} ${y} L ${x2} ${y2}" pathLength="1" fill="none" stroke="${color(item.color)}" stroke-width="${pick(item.stroke, 3, 24, 9)}" stroke-linecap="round" stroke-dasharray="1" stroke-dashoffset="1"/></svg>`;
+      }
+      tl.push(`ft("${sel}", { autoAlpha: 0, y: 24, scale: .9 }, { autoAlpha: 1, y: 0, scale: 1, duration: .38, ease: "back.out(1.4)" }, ${at});`);
+      if (type === "circle") return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${w}px;border-radius:50%;background:${color(item.color)};box-shadow:0 12px 45px #0005"></div>`;
+      if (type === "box") return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;min-height:${h}px;border-radius:26px;background:${color(item.color)};padding:25px;box-sizing:border-box;color:#fff;font:800 ${pick(item.size, 46, 120, 64)}px/1.1 Montserrat,Arial,sans-serif;box-shadow:0 20px 55px #0006">${esc(String(item.text || "").slice(0, 80))}</div>`;
+      return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;color:${color(item.color)};font:800 ${pick(item.size, 46, 130, 78)}px/1.06 Montserrat,Arial,sans-serif;text-shadow:0 5px 20px #0009;overflow-wrap:break-word">${esc(String(item.text || "").slice(0, 80))}</div>`;
+    }).join("")}</div>`;
+  }
+
+  else if (b.kind === "vector") {
+    // A reusable SVG explainer scene: one world, path drawing and a camera
+    // move. All motion is registered on the composition's paused timeline.
+    const label = String(b.text || "").slice(0, 90);
+    const shape = ["rise", "wave", "fork"].includes(b.shape) ? b.shape : "rise";
+    const paths = {
+      rise: "M 140 1350 C 270 1180 330 1220 415 1020 S 590 770 700 680 S 825 460 925 340",
+      wave: "M 100 1100 C 250 630 390 1430 540 900 S 810 630 980 860",
+      fork: "M 540 1460 L 540 1020 Q 440 810 280 620 M 540 1020 Q 650 800 840 500",
+    };
+    const nodeText = Array.isArray(b.nodes) ? b.nodes.slice(0, 3).map((n) => esc(String(n).slice(0, 24))) : [];
+    const d = Math.max(0.4, t1 - t0);
+    body = `<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 34%,#344c43,#121d1a 72%);overflow:hidden">
+      <div id="${id}-world" style="position:absolute;inset:0;transform-origin:50% 50%">
+        <svg viewBox="0 0 1080 1920" width="1080" height="1920" style="position:absolute;inset:0">
+          <circle cx="540" cy="780" r="310" fill="#e8dbad" opacity=".08"/>
+          <path id="${id}-path" d="${paths[shape]}" fill="none" stroke="${brand.accent}" stroke-width="20" stroke-linecap="round" stroke-dasharray="1900" stroke-dashoffset="1900"/>
+          <circle id="${id}-node1" cx="415" cy="1020" r="42" fill="${brand.accent}"/><circle id="${id}-node2" cx="700" cy="680" r="42" fill="${brand.accent}"/><circle id="${id}-node3" cx="925" cy="340" r="42" fill="${brand.accent}"/>
+        </svg>
+        ${nodeText.map((n, i) => `<div id="${id}-node-label${i}" style="position:absolute;left:${[120, 580, 650][i]}px;top:${[1080, 740, 260][i]}px;max-width:320px;color:#f6edda;font:700 39px/1.1 Montserrat,Arial,sans-serif;text-shadow:0 3px 14px #0009">${n}</div>`).join("")}
+        <div id="${id}-label" style="position:absolute;left:110px;top:1460px;width:860px;color:#f6edda;font:800 88px/1.05 Montserrat,Arial,sans-serif;text-align:center;text-shadow:0 5px 30px #0009">${esc(label)}</div>
+      </div></div>`;
+    tl.push(`ft("#${id}-path", { attr: { "stroke-dashoffset": 1900 } }, { attr: { "stroke-dashoffset": 0 }, duration: ${r3(d * .8)}, ease: "power2.inOut" }, ${t0});`);
+    [1, 2, 3].forEach((n, i) => tl.push(`ft("#${id}-node${n}", { attr: { r: 0 } }, { attr: { r: 42 }, duration: .3, ease: "back.out(1.8)" }, ${r3(t0 + d * (.28 + i * .18))});`));
+    nodeText.forEach((_, i) => tl.push(`ft("#${id}-node-label${i}", { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: .25, ease: "power2.out" }, ${r3(t0 + d * (.32 + i * .18))});`));
+    tl.push(`ft("#${id}-world", { scale: 1.12, y: 60 }, { scale: 1, y: 0, duration: ${r3(d)}, ease: "sine.inOut" }, ${t0});`);
+    tl.push(`ft("#${id}-label", { autoAlpha: 0, y: 35 }, { autoAlpha: 1, y: 0, duration: .36, ease: "power3.out" }, ${r3(t0 + d * .36)});`);
   }
 
   else if (b.kind === "image") {
@@ -266,8 +319,9 @@ export function buildScene(b, id, t0, t1, ctx) {
     for (let t = ta, k = 0; t < blinkEnd; t += 0.45, k++) tl.push(`tl.set("#${id}-caret", { opacity: ${k % 2 ? 0 : 1} }, ${r3(t)});`);
     if (text) addSfx(ta, "typing-1", "ui typing", { db: -6 });
     const y = b.y ?? 620;
-    body = `${b.label ? `<div class="ui-label" style="top:${y - 90}px">${esc(b.label)}</div>` : ""}<div id="${id}-win" class="ui-win" style="top:${y}px"><div class="ui-bar"><i></i><i></i><i></i><b>${esc(b.title || "")}</b></div><div class="ui-body"><div class="ui-prompt"><span class="pr">›</span>${chars}<span id="${id}-caret" class="ui-caret"></span></div>${lines}</div></div>`;
+    body = `<div id="${id}-ui-world" style="position:absolute;inset:0;transform-origin:50% 50%">${b.label ? `<div class="ui-label" style="top:${y - 90}px">${esc(b.label)}</div>` : ""}<div id="${id}-win" class="ui-win" style="top:${y}px"><div class="ui-bar"><i></i><i></i><i></i><b>${esc(b.title || "")}</b></div><div class="ui-body"><div class="ui-prompt"><span class="pr">›</span>${chars}<span id="${id}-caret" class="ui-caret"></span></div>${lines}</div></div></div>`;
     tl.push(`ft("#${id}-win", { autoAlpha: 0, y: 60, scale: 0.94 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: "expo.out" }, ${t0});`);
+    tl.push(`ft("#${id}-ui-world", { scale: .95, y: 25 }, { scale: 1.06, y: -25, duration: ${r3(t1 - t0)}, ease: "none" }, ${t0});`);
   }
 
   else if (b.kind === "device") {
@@ -280,9 +334,10 @@ export function buildScene(b, id, t0, t1, ctx) {
       return `<div id="${id}-m${i}" class="${l.me ? "me" : ""}">${esc(l.text)}</div>`;
     }).join("")}</div>`;
     const y = b.y ?? 470;
-    body = `${b.label ? `<div class="ui-label" style="top:${y - 100}px">${esc(b.label)}</div>` : ""}<div id="${id}-dev" class="dev" style="top:${y}px">${screen}</div>`;
+    body = `<div id="${id}-device-world" style="position:absolute;inset:0;transform-origin:50% 50%">${b.label ? `<div class="ui-label" style="top:${y - 100}px">${esc(b.label)}</div>` : ""}<div id="${id}-dev" class="dev" style="top:${y}px">${screen}</div></div>`;
     tl.push(`ft("#${id}-dev", { autoAlpha: 0, y: 380, rotation: 8, scale: 0.9 }, { autoAlpha: 1, y: 0, rotation: -3, scale: 1, duration: 0.6, ease: "expo.out" }, ${t0});`);
     tl.push(`tl.to("#${id}-dev", { rotation: 2, y: -18, duration: ${r3(Math.max(0.3, t1 - t0 - 0.6))}, ease: "sine.inOut" }, ${r3(t0 + 0.6)});`);
+    tl.push(`ft("#${id}-device-world", { scale: .95, y: 20 }, { scale: 1.06, y: -20, duration: ${r3(t1 - t0)}, ease: "none" }, ${t0});`);
     addSfx(t0, "whoosh", "device in");
   }
 
@@ -337,7 +392,10 @@ export function buildScene(b, id, t0, t1, ctx) {
   transIn(ctx, `#${sid}`, inKind, t0);
   if (inKind === "expand" || inKind === "wipe") addSfx(t0, "whoosh", `scene in (${inKind})`);
   transOut(ctx, `#${sid}`, outKind, t1);
-  return `<div id="${sid}" class="scene" style="background:${customBg ?? bg};background-size:220% 220%">${shaderBg ? shaderBg.html : ""}${body}</div>`;
+  const launchAmbient = ctx.style === "launch" && ["ui", "device", "component", "card"].includes(b.kind);
+  if (launchAmbient) tl.push(`ft("#${sid}-ambient", { x: -520 }, { x: 1200, duration: ${r3(t1 - t0)}, ease: "none" }, ${t0});`);
+  const ambient = launchAmbient ? `<div id="${sid}-ambient" style="position:absolute;top:0;bottom:0;left:0;width:420px;pointer-events:none;opacity:.38;mix-blend-mode:screen;background:linear-gradient(90deg,transparent 0%,${brand.accent}55 25%,${brand.accent}88 50%,${brand.accent}55 75%,transparent 100%)"></div>` : "";
+  return `<div id="${sid}" class="scene" style="background:${customBg ?? bg};background-size:220% 220%">${shaderBg ? shaderBg.html : ""}${body}${ambient}</div>`;
 }
 
 // editorial captions ------------------------------------------------------------
@@ -375,7 +433,8 @@ export function buildEditorialCaptions(words, cap, ctx, hidden) {
     const nextS = bi + 1 < blocks.length ? blocks[bi + 1][0].words[0].start - 0.05 : ctx.SPEECH;
     const e = Math.min(bl.at(-1).words.at(-1).end + 0.5, nextS);
     const h = bl.reduce((n, ln) => n + (ln.tag ? brand.capSize * 1.35 : brand.capSize * 1.1), 0);
-    const pl = ctx.placeCaption ? ctx.placeCaption(Math.max(0, s), e, h) : { y: cap.y ?? 1150, mode: "fixed" };
+    const pl = cap.y != null ? { y: Math.max(220, Math.min(1500 - h, Number(cap.y))), mode: "fixed" }
+      : ctx.placeCaption ? ctx.placeCaption(Math.max(0, s), e, h) : { y: 1150, mode: "fixed" };
     const y = pl.y;
     const inner = bl.map((ln, li) => {
       const lid = `eb${bi}l${li}`;
@@ -397,7 +456,8 @@ export function buildEditorialCaptions(words, cap, ctx, hidden) {
         return `<span id="${wid}" class="ew">${esc(txt)}</span>`;
       }).join("")}</span>`;
     }).join("");
-    return `<div id="eb${bi}" class="eblock clip${pl.mode === "lower-face" ? " ebacked" : ""}" style="top:${y}px${pl.scale && pl.scale < 1 ? `;transform:scale(${pl.scale});transform-origin:50% 0` : ""}" data-start="${r3(Math.max(0, s))}" data-duration="${r3(Math.max(0.1, e - s))}" data-track-index="5">${inner}</div>`;
+    const backing = typeof cap.background === "string" && /^(rgba?\([\d\s,.%]+\)|#[0-9a-f]{6})$/i.test(cap.background) ? `;background:${cap.background};border-radius:22px;padding:10px 0 14px` : "";
+    return `<div id="eb${bi}" class="eblock clip${pl.mode === "lower-face" ? " ebacked" : ""}" style="top:${y}px${backing}${pl.scale && pl.scale < 1 ? `;transform:scale(${pl.scale});transform-origin:50% 0` : ""}" data-start="${r3(Math.max(0, s))}" data-duration="${r3(Math.max(0.1, e - s))}" data-track-index="5">${inner}</div>`;
   }).join("\n      ");
   // hide the captions under full-screen scenes that don't want them
   tl.push(`tl.set("#ecaps", { autoAlpha: 1 }, 0);`);

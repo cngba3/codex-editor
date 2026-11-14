@@ -8,12 +8,26 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["mode", "text", "at", "to"],
+        "required": ["mode", "text", "at", "to", "parts", "layout", "placement"],
         "properties": {
           "mode": { "type": "string", "enum": ["progressive", "black"] },
           "text": { "type": "string" },
           "at": { "type": "number" },
-          "to": { "type": "number" }
+          "to": { "type": "number" },
+          "layout": { "type": "string", "enum": ["compact", "stepped", "split"] },
+          "placement": { "type": "string", "enum": ["upper-center", "lower-center"] },
+          "parts": {
+            "type": "array", "minItems": 1, "maxItems": 6,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["text", "role", "row"],
+              "properties": {
+                "text": { "type": "string" },
+                "row": { "type": "integer", "minimum": 0, "maximum": 5 },
+                "role": { "type": "string", "enum": ["serif", "hero", "support", "connector"] }
+              }
+            }
+          }
         }
       }
     }

@@ -35,10 +35,26 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hf_version import hf  # noqa: E402  (the pinned HyperFrames CLI, scripts/HF_VERSION)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
-from reelproj import (beats_timeline, caption_at, caption_groups, fmt_t, load_project,  # noqa: E402
+from reelproj import (bare_project, beats_timeline, caption_at, caption_groups, fmt_t, load_project,  # noqa: E402
                       parse_build_log, predicted_silences, run_build, sh, take_words, taste_mjs)
 
 esc = lambda s: html.escape(str(s), quote=True)  # noqa: E731
+
+
+def sheet_project(path, skill=None, upstream=None):
+    """Native recipe generators emit index.html directly, without reel.json."""
+    if os.path.exists(os.path.join(path, "reel.json")):
+        return load_project(path, skill, upstream)
+    recipe_path = os.path.join(path, "recipe.json")
+    recipe = json.load(open(recipe_path, encoding="utf-8")).get("id") if os.path.exists(recipe_path) else None
+    pr = bare_project(path, skill, recipe)
+    beats_path = os.path.join(path, "build", "beats.json")
+    if os.path.exists(beats_path):
+        native = json.load(open(beats_path, encoding="utf-8"))
+        pr.spec["beats"] = [{"type": b.get("label") or b.get("type", "beat"), "at": b["t0"], "to": b["t1"],
+                              "moments": [{"at": t} for t in b.get("keys", [])]}
+                             for b in native.get("beats", []) if b.get("t0") is not None and b.get("t1") is not None]
+    return pr
 
 
 def build_hash(proj):
@@ -571,14 +587,14 @@ def main():
         return
 
     t_start = dt.datetime.now()
-    pr = load_project(proj, a.skill, a.upstream)
+    pr = sheet_project(proj, a.skill, a.upstream)
     log_path = os.path.join(proj, "build", "build.log")
     if not a.no_build:
         print("building (build.mjs)...")
         code, text = run_build(pr, log_path)
         if code != 0:
             print(text[-1500:])
-        pr = load_project(proj, a.skill, a.upstream)
+        pr = sheet_project(proj, a.skill, a.upstream)
     text = open(log_path).read() if os.path.exists(log_path) else ""
     bl = parse_build_log(text)
     hsh = build_hash(proj)
@@ -589,7 +605,8 @@ def main():
     # build/build_report.json (written by build.mjs once the INTEGRATION patch is in) beats parsing stdout
     brp = os.path.join(proj, "build", "build_report.json")
     idx = os.path.join(proj, "index.html")
-    fresh = os.path.exists(brp) and os.path.exists(idx) and os.path.getmtime(brp) >= os.path.getmtime(idx) >= os.path.getmtime(os.path.join(proj, "reel.json"))
+    reel_json = os.path.join(proj, "reel.json")
+    fresh = os.path.exists(reel_json) and os.path.exists(brp) and os.path.exists(idx) and os.path.getmtime(brp) >= os.path.getmtime(idx) >= os.path.getmtime(reel_json)
     br = json.load(open(brp)) if fresh else None  # same build run as index.html, else ignore it
     warns = [("error", f"build.mjs: {e}") for e in bl["errors"]]
     sev_of = {}

@@ -1,0 +1,35 @@
+{
+  "reference": "template-1.mp4",
+  "durationSeconds": 164.766,
+  "dimensions": [720, 1280],
+  "fps": 30,
+  "method": "Visual contact sheets sampled every 2 seconds across the reference, plus 4 fps samples of opening and ending typography. Timing below is approximate. Audio has not been perceptually reviewed; no SFX or music claims are inferred from these frames.",
+  "observations": [
+    { "seconds": [0, 4], "finding": "Upper hook: small white serif Làm and large white MC Esports. Lower question: có cần and phải giỏi share a baseline with different sizes/styles; chơi game is the yellow hero on the next row. Existing text stays in place as new runs appear." },
+    { "seconds": [6, 10], "finding": "Comment/news screenshots provide context around the speaker; yellow 1 phần is surrounded by small supporting text. These are contextual evidence assets, not generic decoration." },
+    { "seconds": [14, 28], "finding": "Quiet subtitle passages alternate with phone/gameplay inserts and a cutout. There is no need for a display headline at every sentence." },
+    { "seconds": [30, 36], "finding": "Mixed white/yellow stepped phrases are one motif, followed by a full-frame photographic cutaway. Staircase is not a universal layout." },
+    { "seconds": [42, 46], "finding": "Nhưng remains above the speaker while the continuation develops below. A split composition has rhetorical purpose." },
+    { "seconds": [48, 60], "finding": "Event footage replaces the talking-head picture while subtitles continue. Subject-specific B-roll makes the story tangible." },
+    { "seconds": [70, 75], "finding": "Bỏ and cái tôi sit beside one another at different sizes; small serif continuation follows below. This needs mixed inline runs, not one block per style." },
+    { "seconds": [82, 96], "finding": "Conversation and headset/notebook footage illustrate learning and preparation; imagery matches the story rather than a generic keyword." },
+    { "seconds": [102, 116], "finding": "Centered emphasis, small bridges, and a deliberate two-region composition coexist. Placement depends on phrase and available space around the subject." },
+    { "seconds": [130, 142], "finding": "Longer quiet talking-head passage with compact subtitles gives the conclusion room to build." },
+    { "seconds": [144, 164], "finding": "Opening question returns, then contrast Không nhất thiết / Chắc chắn and the final takeaway. Headlines become denser at the conclusion because of meaning, not fixed spacing." }
+  ],
+  "implementationChanges": [
+    "Planner supplies exact semantic runs, roles, row numbers, compact/stepped/split layout and preferred placement.",
+    "Validate complete spoken-word match, preserve compounds and derive onsets from word timestamps.",
+    "Mixed inline runs share baselines and reserve their width before reveal.",
+    "No automatic black flash; Amber explicitly disables black mode.",
+    "Correct italic font-family registration for both filename conventions.",
+    "Leave quiet subtitle passages; skip dubious ASR phrases when choosing emphasis.",
+    "Visual QA recipe now checks semantic emphasis and layout variety."
+  ],
+  "remainingLimits": [
+    "Preview fixture uses manually chosen semantic groups to verify the renderer; it is not a new end-to-end Codex-planned job.",
+    "Lighting, framing, performance and personal archival footage of the reference cannot be reproduced by typography changes alone.",
+    "The existing transcript has apparent ASR errors; selecting emphasis cannot correct all subtitle errors.",
+    "This change does not add a multi-asset B-roll retrieval workflow or perceptual audio analysis."
+  ]
+}

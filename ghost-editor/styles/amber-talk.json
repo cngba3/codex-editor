@@ -1,5 +1,5 @@
 {
-  "_about": "Derived from template-1.mp4: warm talking head, restrained push-ins, rounded translucent subtitles, stepped cream-yellow headlines with gentle slant, occasional photographic cutaway.",
+  "_about": "Derived from template-1.mp4: mixed-size inline typography, compact or selectively stepped groups, speech-timed cream/white emphasis, quiet subtitle passages and relevant photographic cutaways. Never force full-screen black flashes.",
   "brand": {
     "accent": "#F4E7A5",
     "accentDark": "#D9C77C",
@@ -22,12 +22,45 @@
     "padding": "10px 18px"
   },
   "titleVariants": [
-    { "placement": "upper-left", "font": "Inter Tight", "size": 108, "italic": true, "mixed": true, "align": "left" },
-    { "placement": "lower-center", "font": "Inter Tight", "size": 100, "italic": true, "mixed": false, "align": "center" },
-    { "placement": "lower-right", "font": "Playfair Display", "size": 90, "italic": true, "mixed": true, "align": "right" },
-    { "placement": "upper-right", "font": "Inter Tight", "size": 96, "italic": true, "mixed": false, "align": "right" }
+    {
+      "placement": "upper-left",
+      "font": "Inter Tight",
+      "size": 108,
+      "italic": true,
+      "mixed": true,
+      "align": "left"
+    },
+    {
+      "placement": "lower-center",
+      "font": "Inter Tight",
+      "size": 100,
+      "italic": true,
+      "mixed": false,
+      "align": "center"
+    },
+    {
+      "placement": "lower-right",
+      "font": "Playfair Display",
+      "size": 90,
+      "italic": true,
+      "mixed": true,
+      "align": "right"
+    },
+    {
+      "placement": "upper-right",
+      "font": "Inter Tight",
+      "size": 96,
+      "italic": true,
+      "mixed": false,
+      "align": "right"
+    }
   ],
-  "compositionLayouts": ["upper-left", "lower-center", "lower-center", "upper-center"],
+  "compositionLayouts": [
+    "upper-left",
+    "lower-center",
+    "lower-center",
+    "upper-center"
+  ],
   "illustrationLayout": "photo-overlay",
   "sfxProfile": "restrained",
   "music": {

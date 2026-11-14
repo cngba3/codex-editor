@@ -2,7 +2,7 @@
   "type":"object","additionalProperties":false,
   "required":["rationale","beats_json","captions_json","zoom_json","music_json"],
   "properties":{
-    "rationale":{"type":"string"},"beats_json":{"type":"string"},
-    "captions_json":{"type":"string"},"zoom_json":{"type":"string"},"music_json":{"type":"string"}
+    "rationale":{"type":"string"},"beats_json":{"type":"string","description":"JSON array. Every beat needs numeric at/to in original source seconds; use only supported types."},
+    "captions_json":{"type":"string","description":"Valid JSON object of caption options."},"zoom_json":{"type":"string","description":"Valid JSON object of zoom options."},"music_json":{"type":"string","description":"The literal string null to keep current music, or a valid JSON object. Never an empty string."}
   }
 }

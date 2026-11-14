@@ -34,6 +34,7 @@ import { KINETIC_CSS, buildKinetic, blockHeight, placeY } from "./lib/kinetic.mj
 import { installShaderRuntime, shaderLayerHtml, extractStill } from "./lib/shader-layer.mjs";
 import { loadManifest as emojiManifest, installEmoji, emojiPopHtml, emojiPopJs, EMOJI_POP_CSS, EMOJI_DIR } from "./lib/emoji-pop.mjs";
 import { makePlacer, PLATFORMS } from "./lib/safezone.mjs";
+import { amberType } from "./lib/amber-type.mjs";
 import { TEMPLATE_NAMES, buildTemplateCaptions } from "./lib/caption-templates.mjs";
 import { aiTag } from "./lib/ai-tag.mjs";
 import { findTaste, loadTaste, applyTaste, checkTaste, bannedSfx } from "./lib/taste.mjs";
@@ -214,7 +215,8 @@ const voiceP95 = (() => {
   return 20 * Math.log10(Math.max(pk[Math.floor(pk.length * 0.95)] || 0.3, 1e-6));
 })();
 const volFor = (role, extraDb = 0) => r3(Math.min(1, Math.pow(10, (voiceP95 + ROLE_DB[role] + extraDb + 1) / 20)));
-const VARIANTS = { pop: ["pop-1", "pop-2", "pop-3"], whoosh: ["whoosh-1", "whoosh-2", "whoosh-3"], impact: ["impact-1", "impact-2"] };
+// pop-2 is only 49 ms and disappears beneath speech at the standard UI mix.
+const VARIANTS = { pop: ["pop-1", "pop-3"], whoosh: ["whoosh-1", "whoosh-2", "whoosh-3"], impact: ["impact-1", "impact-2"] };
 const rr = {};
 const pick = (id) => {
   if (!VARIANTS[id]) return id;
@@ -241,6 +243,14 @@ const beatSfx = (b, t, def, why, opts) => {
   const s = b.sfx === undefined ? def : b.sfx;
   if (s === false || s === "none") return;
   for (const id of [].concat(s)) addSfx(t, id, why, { ...opts, explicit: b.sfx !== undefined });
+};
+let amberAccentCount = 0, lastAmberAccent = -Infinity;
+const amberAccent = (b, at, pivot = false) => {
+  if (spec.style !== "amber-talk" || amberAccentCount >= 3 || at - lastAmberAccent < 5 ||
+      sfxEvents.some(event => Math.abs(event.t - at) < 1.5)) return;
+  const before = sfxEvents.length;
+  beatSfx(b, at, pivot ? "impact-1" : "whoosh-1", "amber accent", { db: pivot ? -8 : -6, lead: 0.04 });
+  if (sfxEvents.length > before) { amberAccentCount++; lastAmberAccent = at; }
 };
 
 // ---------- zoom ----------
@@ -322,7 +332,7 @@ const takeHtml = takes.map((k, i) => {
   }
   return h;
 }).join("");
-const takeAudio = takes.map((k, i) => `
+const takeAudio = spec.voice?.src ? `<audio id="edited-voice" src="${userAsset(spec.voice.src)}" data-start="0" data-duration="${fgrid(takes.reduce((n, k) => n + k.frames + (k.holdFrames || 0), 0))}" data-track-index="10"></audio>` : takes.map((k, i) => `
   <audio id="take-${i}-audio" src="${SRC}" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${k.a}" data-track-index="${10 + (i % 2)}" data-automation='${fadeLane(k.dur)}'></audio>`).join("");
 // ---------- transitions: pre-rendered windows from scripts/transitions.py reel ----------
 // Each window is a short clip laid over the cut inside the camera wrappers (zooms and the look apply to it like to the
@@ -568,7 +578,7 @@ const faceY = (() => {
 })();
 // warn: blocks report their own problems; punchSel: the footage wrapper a textfx hook may punch
 // usesShaders: a scene put a Paper shader layer on the page (the runtime script gets installed); stillAt: a frame of the footage
-const motionCtx = { tl, E, r3, esc, addSfx, brand, userAsset, words, proj, LIB, faceY, warn, punchSel: "punch", usesShaders: false,
+const motionCtx = { tl, E, r3, esc, addSfx, brand, style: spec.style, userAsset, words, proj, LIB, faceY, warn, punchSel: "punch", usesShaders: false,
   stillAt: (t, name) => extractStill(proj, path.resolve(proj, SRC), mediaAt(t), name), get SPEECH() { return SPEECH; }, get TOTAL() { return TOTAL; } };
 // stan style (lib/stan.mjs): panel runs and the speaker's move under them are worked out before any beat is built, so
 // labels and chest captions know where the face is during a panel
@@ -649,7 +659,7 @@ for (const b of beatsList) {
         const at = it.at !== undefined ? E(it.at, "chip") : t0 + i * 0.35;
         tl.push(`ft("#${id}-c${i}", { autoAlpha: 0, scale: 0.4, y: 30 }, { autoAlpha: 1, scale: 1, y: 0, duration: 0.35, ease: "back.out(2.4)" }, ${r3(at)});`);
         beatSfx(it, at, "pop", "chip");
-        return `<div id="${id}-c${i}" class="chip"><div class="chip-face" style="background:${it.bg || "#fff"};color:${it.fg || "#111"}">${face}</div>${it.label ? `<div class="chip-label">${esc(it.label)}</div>` : ""}</div>`;
+        return `<div id="${id}-c${i}" class="chip"><div class="chip-face" style="${img ? `background:${it.bg || "#fff"};color:${it.fg || "#111"}` : ""}">${face}</div>${it.label ? `<div class="chip-label">${esc(it.label)}</div>` : ""}</div>`;
       });
       inner = `<div id="${id}-in" class="ov chips" style="left:${CARD.x}px;top:${cy}px;width:${CARD.w}px">${items.join("")}</div>`;
       break;
@@ -740,8 +750,16 @@ for (const b of beatsList) {
       const customComposition = Object.keys(composition).length > 0;
       const firstPartAt = Math.max(t0, Math.min(...parts.map(part => E(part.at, "composition word"))));
       hiddenCaps.push([firstPartAt, t1]);
+      if (!beatsList.some(next => next.type === "black-flash" && next.at >= b.to && next.at - b.to < 2)) {
+        const hero = parts.find(part => part.role === "hero") || parts[0];
+        amberAccent(b, E(hero.at, "amber hero"));
+      }
       const head = face ? placer.span(t0, t1) : null;
-      const split = ["split-safe", "connector-split"].includes(b.placement) || parts.length >= 4;
+      if (spec.style === 'amber-talk' && parts.every(p => Number.isInteger(p.row))) {
+        inner = amberType({ parts, layout: b.layout, placement: b.placement, head, id, t0, t1, E, esc, tl, accent: brand.accent || '#F4E7A5' });
+        break;
+      }
+      const split = ["split-safe", "connector-split"].includes(b.placement);
       const opener = parts[0]?.role === "connector";
       let topCount = split ? (opener ? 1 : 2) : 0;
       const leftSpace = head?.seen ? Math.max(0, head.left - 65) : 310;
@@ -860,6 +878,7 @@ for (const b of beatsList) {
     }
     case "black-flash": {
       hiddenCaps.push([t0, t1]);
+      amberAccent(b, t0, true);
       b._track = 9;
       const phrase = String(b.text || "").trim();
       const size = Math.max(96, Math.min(125, Math.floor(840 / Math.max(1, [...phrase].length * .45))));
@@ -874,7 +893,7 @@ for (const b of beatsList) {
     }
     case "title": {
       // giant display words that pop in one by one on their spoken times (`words: [{text, at}]`), or a whole `text` at once
-      const phrase = String(b.text ?? "").trim();
+      const phrase = String(b.text ?? (Array.isArray(b.words) ? b.words.map(w => w.text).join(" ") : "")).trim();
       const parts = phrase.split(/\s+/);
       const ws = b.words ?? (b.mixed && parts.length > 1
         ? [{ text: parts[0], at: b.at, small: true }, { text: parts.slice(1).join(" "), at: b.at }]
@@ -889,13 +908,13 @@ for (const b of beatsList) {
       }).join(" ");
       const head = face ? placer.span(t0, t1) : null;
       const lower = head?.seen ? Math.min(1230, Math.max(1050, head.bottom + 140)) : 1110;
-      const upper = head?.seen ? Math.max(100, Math.min(260, head.top - 210)) : 170;
-      const placement = b.placement ?? "";
+      const upper = head?.seen ? Math.max(40, Math.min(120, head.top - 190)) : 170;
+      const placement = b.placement ?? (head?.seen ? "upper-center" : "");
       const x = b.x ?? (placement.includes("right") ? 340 : 70);
       const right = b.right ?? (placement.includes("left") ? 300 : 70);
       const y = b.y ?? (placement.startsWith("upper") ? upper : placement.startsWith("lower") ? lower : 190);
       const width = W - x - right;
-      const upperCap = placement.startsWith("upper") && [...phrase].length > 20 ? 64 : Infinity;
+      const upperCap = placement.startsWith("upper") && head?.seen ? ([...phrase].length > 28 ? 56 : 72) : placement.startsWith("upper") && [...phrase].length > 20 ? 64 : Infinity;
       const size = Math.max(56, Math.min(b.size ?? 120, upperCap, Math.floor(width * 2 / Math.max(1, [...phrase].length * 0.55))));
       inner = `<div id="${id}-in" class="ov title" style="left:${x}px;right:${right}px;top:${y}px;z-index:4;text-align:${b.align ?? "center"};font-family:'${b.font ?? brand.font ?? "Inter"}', Inter, sans-serif;font-size:${size}px;font-weight:${b.weight ?? 900};font-style:${b.italic ? "italic" : "normal"};line-height:0.98;letter-spacing:${b.tracking ?? "-2px"};text-transform:${b.upper === false ? "none" : "uppercase"};color:${b.color ?? "#fff"};text-shadow:${b.glow ? `0 0 28px ${b.glow}, ` : ""}0 6px 24px rgba(0,0,0,.45)">${spans}</div>`;
       if (b.sfx) beatSfx(b, t0, null, "title");
@@ -1065,6 +1084,9 @@ motionCtx.sidePad = placer.sidePad;
 
 // ---------- captions ----------
 const cap = { style: "house", group: 3, highlight: null, ...(spec.captions || {}) };
+if (spec.style === "launch" && cap.style === "editorial" && !cap.background) cap.background = "rgba(8,8,12,0.72)";
+if (cap.style === "editorial" && Number.isFinite(Number(cap.size))) brand.capSize = Math.max(64, Math.min(90, Number(cap.size)));
+else if (cap.style === "editorial") brand.capSize = Math.max(64, brand.capSize);
 if (cap.style === "clean" && !cap.highlight) cap.highlight = brand.accent;
 const groups = [];
 let cur = [];
@@ -1143,10 +1165,12 @@ const FONT_NAMES = { "playfair-display": "Playfair Display", "jetbrains-mono": "
 const RANGES = { latin: "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD", cyrillic: "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116", vietnamese: "U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB" };
 const fontFaces = fs.readdirSync(path.join(A, "fonts")).filter((f) => /-(latin|cyrillic|vietnamese)(-italic)?\.woff2$/.test(f)).map((f) => {
   const m = /^(.*)-(latin|cyrillic|vietnamese)(-italic)?\.woff2$/.exec(f);
-  const fam = FONT_NAMES[m[1]] || m[1].split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  const base = m[1].replace(/-italic$/, '');
+  const italic = !!m[3] || m[1].endsWith('-italic');
+  const fam = FONT_NAMES[base] || base.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
   if (["Geist", "Inter", "Montserrat"].includes(fam)) return "";
-  const range = m[1] === "playfair-display" && m[2] === "latin" ? `${RANGES.latin}, ${RANGES.vietnamese}` : RANGES[m[2]];
-  return `@font-face { font-family: "${fam}"; src: url(assets/fonts/${f}) format("woff2"); font-weight: 100 900;${m[3] ? " font-style: italic;" : ""} unicode-range: ${range}; }`;
+  const range = base === "playfair-display" && m[2] === "latin" ? `${RANGES.latin}, ${RANGES.vietnamese}` : RANGES[m[2]];
+  return `@font-face { font-family: "${fam}"; src: url(assets/fonts/${f}) format("woff2"); font-weight: 100 900;${italic ? " font-style: italic;" : ""} unicode-range: ${range}; }`;
 }).join("\n  ");
 const look = spec.look || {};
 if (look.film) { delete look.grade; delete look.grain; } // the graded plate already carries the stock's colour and grain
@@ -1192,11 +1216,12 @@ const html = `<!doctype html>
   .card { background: rgba(14,14,16,.92); color: #fff; border-radius: 28px; padding: 28px 36px; box-shadow: 0 18px 50px rgba(0,0,0,.35); }
   .big-text { font-size: 96px; font-weight: 800; letter-spacing: -2px; line-height: 1.02; }
   .big-sub { font-size: 38px; font-weight: 600; color: #FFD166; margin-top: 8px; }
-  .chips { display: flex; gap: 26px; }
-  .chip { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .chip-face { width: 130px; height: 130px; border-radius: 30px; display: flex; align-items: center; justify-content: center; font-size: 70px; font-weight: 800; box-shadow: 0 12px 30px rgba(0,0,0,.3); }
+  .chips { display: flex; gap: 18px; }
+  .chip { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 12px; border-radius: 24px; background: rgba(14,14,20,.94); border: 3px solid ${brand.accent}; box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+  .chip-face { width: 100%; min-height: 108px; border-radius: 18px; display: flex; align-items: center; justify-content: center; text-align: center; overflow-wrap: anywhere; font-size: 40px; line-height: 1.08; font-weight: 800; color: #fff; }
+  .chip-face span { display: block; max-width: 100%; }
   .chip-face img { width: 62%; height: 62%; object-fit: contain; }
-  .chip-label { font-size: 30px; font-weight: 700; color: #111; background: rgba(255,255,255,.94); padding: 6px 18px; border-radius: 14px; white-space: nowrap; }
+  .chip-label { font-size: 28px; font-weight: 700; color: #fff; background: ${brand.accent}; padding: 6px 14px; border-radius: 14px; white-space: normal; text-align: center; }
   .strike-wrap { position: relative; display: inline-block; }
   .strike-line { position: absolute; left: -8px; right: -8px; top: 52%; height: 12px; background: #FF453A; border-radius: 6px; transform-origin: 0 50%; }
   .strike-x { position: absolute; right: 36px; top: 18px; font-size: 110px; color: #FF453A; font-weight: 900; }

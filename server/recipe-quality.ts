@@ -1,17 +1,19 @@
-import { copyFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
 
 type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
 export async function finishRecipe(input: {
-  root: string; directory: string; recipe: Recipe; run: Runner; ffmpeg: string; codex: string; job: QualityJob
+  root: string; directory: string; recipe: Recipe; run: Runner; job: QualityJob
   build: (round: number, feedback: string) => Promise<void>
 }) {
-  const { root, directory, recipe, run, ffmpeg, codex, job, build } = input
+  const { root, directory, recipe, run, job, build } = input
   const cli = join(root, 'node_modules/hyperframes/bin/hyperframes.mjs')
   const output = join(directory, 'build/reel.mp4')
-  let feedback = ''
+  const previousFailure = join(directory, 'build', 'repair-2.txt')
+  let feedback = existsSync(previousFailure) ? readFileSync(previousFailure, 'utf8').slice(-16000) : ''
+  let failureSummary = ''
   job.recipe = recipe.name; job.recipeVersion = recipe.fingerprint
   for (let round = 0; round < 3; round++) {
     job.qualityRound = round + 1
@@ -21,17 +23,28 @@ export async function finishRecipe(input: {
       await build(round, feedback)
       job.stage = 'Kiểm tra bản dựng trước render'; job.progress = 73
       await run(process.execPath, [cli, 'lint'], { cwd: directory })
+      const approval = join(root, 'ghost-editor/scripts/approval_sheet.py')
+      await run('uv', [...pythonArgs, approval, directory, '--no-build', '--max-frames', '24'])
+      const approvalHtml = join(directory, 'build/approval.html')
+      await run('uv', [...pythonArgs, approval, directory, '--mark-approved'])
       const html = readFileSync(join(directory, 'index.html'), 'utf8')
       const seconds = Number(html.match(/data-composition-id=["'][^"']+["'][^>]*data-duration=["']([\d.]+)["']/)?.[1])
       if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 65) throw new Error('Recipe tạo thời lượng không hợp lệ.')
-      job.stage = `Render MP4 · vòng ${round + 1}/3`; job.progress = 75
-      await run(process.execPath, [cli, 'render', '--workers', '1', '-o', output], { cwd: directory })
-      const normalized = join(directory, 'build/reel-normalized.mp4')
-      await run(ffmpeg, ['-v', 'error', '-y', '-i', output, '-t', String(seconds), '-c:v', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', normalized])
-      copyFileSync(normalized, output); unlinkSync(normalized)
+      const finals = join(root, 'ghost-editor/scripts/finals.py')
+      const finalsDir = join(directory, 'build/finals')
+      const manifest = join(directory, 'build/finals-manifest.json')
+      writeFileSync(manifest, JSON.stringify({ reels: [{ project: directory, out: finalsDir, name: 'reel', workers: 1, recipe: recipe.id, profile: recipe.id === 'seoul-list' ? 'broll-led' : 'talking-head', no_music: false, normalize_loudness: true }] }), 'utf8')
+      job.stage = `Render preview · vòng ${round + 1}/3`; job.progress = 75
+      await run('uv', [...pythonArgs, finals, 'preview', '--batch', manifest])
+      const preview = join(finalsDir, 'reel (preview).mp4')
+      if (!existsSync(preview)) throw new Error('Ghost Editor không tạo được preview.')
+      job.stage = 'Preview tự động được duyệt'; job.progress = 82
+      job.stage = `Render MP4 · vòng ${round + 1}/3`; job.progress = 84
+      await run('uv', [...pythonArgs, finals, 'render', '--batch', manifest, '--no-nomusic'])
+      const final = join(finalsDir, 'reel.mp4')
+      if (!existsSync(final)) throw new Error('Ghost Editor không tạo được bản xuất cuối.')
+      copyFileSync(final, output)
       job.stage = 'Kiểm tra hình, âm thanh và recipe'; job.progress = 94
-      const sheet = join(directory, 'build', `review-${round}.jpg`)
-      await run(ffmpeg, ['-v', 'error', '-y', '-i', output, '-vf', `fps=${12 / seconds},scale=270:480,tile=4x3:padding=3:color=white`, '-frames:v', '1', '-update', '1', sheet])
       const report = join(directory, 'build', `render-report-${round}.json`)
       let technicalFailure = ''
       try {
@@ -41,19 +54,18 @@ export async function finishRecipe(input: {
       if (!existsSync(report)) throw new Error(`Không tạo được báo cáo QA: ${technicalFailure}`)
       const reportText = readFileSync(report, 'utf8')
       job.qa = reportText.slice(-12000)
-      const review = join(directory, 'build', `recipe-review-${round}.json`)
-      await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '-i', sheet, '--output-schema', join(root, 'server/review-schema.json'), '-o', review, '-'], {
-        input: `Review this rendered reel contact sheet against its recipe. Images are sampled throughout the video, not proof of motion or audio. Return passed=false for visible unreadable Vietnamese, missing glyphs, face obstruction, irrelevant illustration or clear recipe violations. Do not invent audio/motion defects from stills. Use technical QA for those. Notes in Vietnamese with specific fixes. Recipe: ${JSON.stringify(recipe)}\nTechnical report: ${reportText}\nNo tools.`,
-      })
-      const verdict = JSON.parse(readFileSync(review, 'utf8')) as { passed: boolean; notes: string }
-      job.review = verdict.notes
-      writeFileSync(join(directory, 'build/quality.json'), JSON.stringify({ round: round + 1, technicalPassed: !technicalFailure, visualPassed: verdict.passed, recipe: recipe.fingerprint, report, review }, null, 2))
-      if (!technicalFailure && verdict.passed) return output
-      feedback = `TECHNICAL: ${technicalFailure}\nREPORT: ${reportText}\nVISUAL: ${verdict.notes}`
+      const qa = JSON.parse(reportText) as { summary?: { status?: string }; checks?: Array<{ id?: string; status?: string; value?: string | number }> }
+      const technicalPassed = !technicalFailure && ['pass', 'warn'].includes(qa.summary?.status || '')
+      job.review = undefined
+      writeFileSync(join(directory, 'build/quality.json'), JSON.stringify({ round: round + 1, technicalPassed, recipe: recipe.fingerprint, report, approval: approvalHtml, preview }, null, 2))
+      if (technicalPassed) return output
+      failureSummary = (qa.checks || []).filter(check => check.status === 'fail').map(check => `${check.id || 'QA'}: ${String(check.value ?? 'không đạt')}`).join('; ') || technicalFailure || 'Báo cáo QA chưa đạt.'
+      feedback = `TECHNICAL: ${technicalFailure}\nREPORT: ${reportText}`
     } catch (error) {
       feedback = error instanceof Error ? error.message : String(error)
+      failureSummary = feedback.split(/\r?\n/)[0].slice(0, 350)
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }
-  throw new Error(`Chưa đạt kiểm tra sau 3 vòng sửa; giữ bản dựng và báo cáo trong thư mục job. ${feedback.slice(-1400)}`)
+  throw new Error(`Chưa đạt kiểm tra sau 3 vòng sửa. ${failureSummary} Bản dựng đã lưu trong thư mục job.`)
 }

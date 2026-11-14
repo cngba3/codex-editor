@@ -8,7 +8,7 @@ export type ReferenceStudy = {
   headlineMode: 'stepped' | 'big' | 'scene' | 'none'; headlineFont: string; headlineColor: string; supportColor: string; serifColor: string; mixedFonts: boolean; headlineSize: number; headlineStep: number; headlineSlant: number
   transition: 'cut' | 'dissolve' | 'blur' | 'wipe'; zoom: 'none' | 'subtle' | 'punch'; blackFlash: boolean; needsMatte: boolean
   visualRules: string; motionRules: string; soundRules: string; limitations: string
-  editRules?: string; assetRules?: string; recipeChecks?: string[]
+  editRules?: string; assetRules?: string; recipeChecks?: string[]; visualMotifs?: string[]
 }
 
 export type StoredReferenceStyle = { id: string; name: string; about: string; basePreset: string; study: ReferenceStudy }
@@ -76,7 +76,7 @@ export async function studyReference(input: {
   const output = join(studyDir, 'style-study.json')
   onProgress?.('Codex tổng hợp công thức style', 29)
   if (!existsSync(output)) {
-    const prompt = `Create ONE reusable ghost-editor style from this reference study. Return JSON matching the schema. Do not simply select a preset: basePreset is only the nearest render foundation, while all style-specific choices must come from the edit log. Preserve recurring typography, caption position and grouping, pacing, transition and sound language. Use only fonts listed in the schema; if the exact font is unavailable choose the closest and say so in limitations. headlineMode stepped means multi-line mixed-size staggered display text; big means one large headline; scene means full-screen cards; none means captions only. Pixel sizes refer to 1080x1920. Keep text readable on phones: captions >=40, headlines >=68. headlineStep is horizontal staircase shift in pixels. headlineSlant is degrees between -8 and 8. captionBackground must be CSS rgba(), #RRGGBB or transparent. mixedFonts is true only if the reference mixes display and serif faces. needsMatte is true only if text appears behind the cut-out speaker. Do not invent elements absent from the study. Do not use tools.\n\n${log.slice(0, 85000)}`
+    const prompt = `Create ONE reusable ghost-editor style from this reference study. Return JSON matching the schema. Do not simply select a preset: basePreset is only the nearest render foundation, while all style-specific choices must come from the edit log. Preserve recurring typography, caption position and grouping, pacing, transition and sound language. visualMotifs must describe concrete observed actions with their speech trigger and timing; an empty array is correct when the sample does not reveal them. Use only fonts listed in the schema; if the exact font is unavailable choose the closest and say so in limitations. headlineMode stepped means multi-line mixed-size staggered display text; big means one large headline; scene means full-screen cards; none means captions only. Pixel sizes refer to 1080x1920. Keep text readable on phones: captions >=40, headlines >=68. headlineStep is horizontal staircase shift in pixels. headlineSlant is degrees between -8 and 8. captionBackground must be CSS rgba(), #RRGGBB or transparent. mixedFonts is true only if the reference mixes display and serif faces. needsMatte is true only if text appears behind the cut-out speaker. Do not invent elements absent from the study. Do not use tools.\n\n${log.slice(0, 85000)}`
     await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', output, '-'], { input: prompt })
   }
   const raw = JSON.parse(readFileSync(output, 'utf8')) as ReferenceStudy
@@ -94,7 +94,7 @@ export async function studyReference(input: {
     transition: ['cut', 'dissolve', 'blur', 'wipe'].includes(raw.transition) ? raw.transition : 'cut',
     zoom: ['none', 'subtle', 'punch'].includes(raw.zoom) ? raw.zoom : 'subtle', blackFlash: !!raw.blackFlash, needsMatte: !!raw.needsMatte,
     visualRules: String(raw.visualRules || '').slice(0, 3000), motionRules: String(raw.motionRules || '').slice(0, 3000), soundRules: String(raw.soundRules || '').slice(0, 3000), limitations: String(raw.limitations || '').slice(0, 2000),
-    editRules: String(raw.editRules || '').slice(0, 3000), assetRules: String(raw.assetRules || '').slice(0, 3000), recipeChecks: Array.isArray(raw.recipeChecks) ? raw.recipeChecks.slice(0, 12).map(item => String(item).slice(0, 500)) : [],
+    editRules: String(raw.editRules || '').slice(0, 3000), assetRules: String(raw.assetRules || '').slice(0, 3000), recipeChecks: Array.isArray(raw.recipeChecks) ? raw.recipeChecks.slice(0, 12).map(item => String(item).slice(0, 500)) : [], visualMotifs: Array.isArray(raw.visualMotifs) ? raw.visualMotifs.slice(0, 6).map(item => String(item).slice(0, 500)) : [],
   }
   return { id: styleId, name: study.name, about: study.about, basePreset: study.basePreset, study }
 }

@@ -12,7 +12,7 @@ export function cutWords(words: Transcript, takes: { a: number; b: number }[]) {
   const segments = takes.map(take => {
     const duration = Math.round((take.b - take.a) * 30) / 30
     const mapped = words.segments.flatMap(s => s.words || []).filter(w => w.end > take.a && w.start < take.b)
-    .map(w => ({ word: w.word, start: cursor + Math.max(0, w.start - take.a), end: cursor + Math.min(duration, w.end - take.a) }))
+      .map(w => ({ word: w.word, start: cursor + Math.max(0, w.start - take.a), end: cursor + Math.min(duration, w.end - take.a) }))
       .filter(w => w.end > w.start)
     const segment = { start: cursor, end: cursor + duration, text: mapped.map(w => w.word.trim()).join(' '), words: mapped }
     cursor += duration

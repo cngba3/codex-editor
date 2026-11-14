@@ -50,7 +50,11 @@ import argparse
 import contextlib
 import csv
 import datetime as dt
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows has msvcrt instead of POSIX flock.
+    fcntl = None
+    import msvcrt
 import hashlib
 import json
 import os
@@ -224,6 +228,17 @@ def render(r, force=False, no_music=True):
         return print(f"FAILED encode {r['name']} (see {log})")
     os.replace(out + ".part.mp4", out)
     os.remove(master)
+    if r.get("normalize_loudness"):
+        normalized = out + ".normalized.mp4"
+        # The app delivers this file directly; cap peaks after loudnorm so AAC
+        # encoding cannot push a near-0 dBTP master past the QA ceiling.
+        af = "loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.82:level=0"
+        cmd = ["ffmpeg", "-v", "error", "-y", "-i", out, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy",
+               "-af", af, "-ar", "48000", "-c:a", "aac", "-b:a", "256k", "-t", f"{duration(out):.3f}",
+               "-movflags", "+faststart", normalized]
+        if run(cmd, log):
+            raise SystemExit(f"FAILED loudness normalization {r['name']} (see {log})")
+        os.replace(normalized, out)
     ledger("render", r, time.time() - t0, out)
     print(f"{time.strftime('%H:%M:%S')} render {r['name']} in {time.time() - t0:.0f} s ({os.path.getsize(out) / 2**20:.0f} MB) -> {out}")
     if no_music and r.get("no_music", True):
@@ -470,20 +485,31 @@ def deliver_nomusic(r, dst, content, dry):
 @contextlib.contextmanager
 def tracker_lock(content):
     """the lock every tracker writer takes (this file and any other tool of yours that writes TRACKER.csv)"""
-    f = open(os.path.join(content, ".tracker.lock"), "a")
+    f = open(os.path.join(content, ".tracker.lock"), "a+b")
+    if fcntl is None and os.path.getsize(f.name) == 0:
+        f.write(b"\0")
+        f.flush()
     t0 = time.time()
     while True:
         try:
-            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is None:
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             break
-        except BlockingIOError:
+        except (BlockingIOError, OSError):
             if time.time() - t0 > 120:
                 raise SystemExit("TRACKER.csv is locked by another writer for 120 s")
             time.sleep(0.5)
     try:
         yield
     finally:
-        fcntl.flock(f, fcntl.LOCK_UN)
+        if fcntl is None:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(f, fcntl.LOCK_UN)
         f.close()
 
 

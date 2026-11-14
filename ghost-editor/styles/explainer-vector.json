@@ -1,0 +1,8 @@
+{
+  "_about": "Narrated vector explainer with drawn paths, a shared green and cream world, spoken labels and restrained cinematic accents.",
+  "brand": { "accent": "#C9A15B", "accentDark": "#8B6733", "ink": "#1B1410", "capSize": 54, "font": "Montserrat" },
+  "captions": { "style": "editorial", "group": 4, "y": 1490 },
+  "sfxProfile": "restrained",
+  "music": null,
+  "look": {}
+}

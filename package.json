@@ -8,7 +8,7 @@
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "setup:model": "node scripts/setup-model.mjs",
-    "test:recipes": "tsx --test scripts/test-recipes.ts"
+    "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts"
   },
   "dependencies": {
     "busboy": "^1.6.0",

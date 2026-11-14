@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownToLine, ArrowRight, Check, ChevronDown, Clapperboard, Clock3, CloudUpload, FileVideo2, Film, FolderOpen, HardDrive, ImagePlus, LayoutGrid, Menu, Play, Plus, Settings2, Sparkles, Trash2, WandSparkles, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowRight, Check, ChevronDown, Clapperboard, Clock3, CloudUpload, FileVideo2, Film, FolderOpen, HardDrive, History, ImagePlus, LayoutGrid, Menu, Play, Plus, Settings2, Sparkles, Trash2, WandSparkles, X } from 'lucide-react'
 import { deleteProject, listProjects, saveProject, type Project } from './store'
 import { editStyles, type EditStyle } from './styles'
 import recipeCatalog from '../server/recipe-catalog.json'
+import HistoryPage from './HistoryPage'
+import RecentHistoryPanel from './RecentHistoryPanel'
 import './render.css'
+import './editor.css'
 
-type Section = 'studio' | 'projects' | 'styles' | 'settings'
+type Section = 'studio' | 'projects' | 'history' | 'styles' | 'settings'
 type Mode = 'preset' | 'reference'
-type CodexState = { installed: boolean; connected: boolean; detail: string }
-type RenderJob = { id: string; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; error?: string; warning?: string; output?: string; kind?: 'preview' | 'full'; parentId?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
-const runnableStyleIds = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', ...recipeCatalog.map(recipe => recipe.id)])
+type CodexState = { installed: boolean; connected: boolean; detail: string; models?: { id: string; name: string }[]; model?: string }
+type RenderJob = { id: string; title?: string; style?: string; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; error?: string; warning?: string; output?: string; kind?: 'preview' | 'full'; parentId?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
+const runnableStyleIds = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage', ...recipeCatalog.map(recipe => recipe.id)])
+const previewStyleIds = new Set(editStyles.map(style => style.id))
+const previewFor = (id: string) => previewStyleIds.has(id) ? `/style-previews/${id}.webp` : null
+const hiddenStyleIds = new Set(['stan-style', 'seoul-list'])
+const noResultText = 'Chưa có video cho phong cách này. Nhấn nút dựng để tạo kết quả mới.'
 const size = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(2)} GB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`
 const time = (seconds: number) => Number.isFinite(seconds) && seconds > 0 ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}` : '—'
 
@@ -41,16 +48,23 @@ export default function App() {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [codex, setCodex] = useState<CodexState | null>(null)
   const [renderJob, setRenderJob] = useState<RenderJob | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackSaved, setFeedbackSaved] = useState(false)
   const [previewOutput, setPreviewOutput] = useState('')
   const [uploading, setUploading] = useState(false)
   const [loginBusy, setLoginBusy] = useState(false)
+  const [modelBusy, setModelBusy] = useState(false)
   const rawInput = useRef<HTMLInputElement>(null)
   const referenceInput = useRef<HTMLInputElement>(null)
+  const displayedJobId = useRef<string | null>(null)
   const rawUrl = useObjectUrl(raw)
   const referenceUrl = useObjectUrl(reference)
-  const allStyles = [...createdStyles, ...editStyles]
+  useEffect(() => { setFeedbackText(''); setFeedbackSaved(false) }, [renderJob?.id])
+  const allStyles = [...createdStyles, ...editStyles].filter(style => !hiddenStyleIds.has(style.id))
   const chosen = allStyles.find(item => item.id === styleId) ?? editStyles[0]
-  const canRunStyle = (id: string) => runnableStyleIds.has(id) || createdStyles.some(item => item.id === id)
+  const canRunStyle = (id: string) => !hiddenStyleIds.has(id) && (runnableStyleIds.has(id) || createdStyles.some(item => item.id === id))
+
+  useEffect(() => { if (hiddenStyleIds.has(styleId)) { setStyleId('amber-talk'); setSupporting([]) } }, [styleId])
 
   useEffect(() => { if (renderJob?.status === 'done' && renderJob.kind !== 'full' && renderJob.output) setPreviewOutput(renderJob.output) }, [renderJob])
   useEffect(() => { listProjects().then(setProjects).catch(() => setNotice('Không thể đọc bộ nhớ trình duyệt.')); void refreshCodex(); void refreshStyles() }, [])
@@ -58,7 +72,15 @@ export default function App() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('ai-editor-last-job')
     if (!id) return
-    fetch(`/api/jobs/${id}`, { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then(data => { if (data) { setRenderJob(data as RenderJob); localStorage.setItem('ai-editor-last-job', id); if (data.style === 'amber-talk') setStyleId('amber-talk') } }).catch(() => {})
+    displayedJobId.current = id
+    fetch(`/api/jobs/${id}`, { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then(data => {
+      if (!data || displayedJobId.current !== id) return
+      const restored = data as RenderJob
+      setRenderJob(restored)
+      localStorage.setItem('ai-editor-last-job', id)
+      if (restored.style && !hiddenStyleIds.has(restored.style) && restored.style !== 'reference') setStyleId(restored.style)
+      if (restored.style === 'reference') setMode('reference')
+    }).catch(() => {})
   }, [])
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 5000); return () => clearTimeout(timer) }, [notice])
   useEffect(() => {
@@ -66,7 +88,10 @@ export default function App() {
     const timer = setInterval(async () => {
       try {
         const response = await fetch(`/api/jobs/${renderJob.id}`, { cache: 'no-store' })
-        if (response.ok) setRenderJob(await response.json() as RenderJob)
+        if (response.ok) {
+          const latest = await response.json() as RenderJob
+          if (displayedJobId.current === renderJob.id) setRenderJob(latest)
+        }
       } catch { /* Keep the last visible stage until the server responds. */ }
     }, 2000)
     return () => clearInterval(timer)
@@ -107,16 +132,66 @@ export default function App() {
     finally { setLoginBusy(false) }
   }
 
+  async function chooseCodexModel(model: string) {
+    setModelBusy(true)
+    try {
+      const response = await fetch('/api/codex/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) })
+      const result = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(result.error || 'Không lưu được model Codex.')
+      setCodex(current => current ? { ...current, model } : current)
+      setNotice(model ? `Đã chọn ${model} cho các lần dựng tiếp theo.` : 'Codex sẽ dùng model mặc định của tài khoản.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không lưu được model Codex.') }
+    finally { setModelBusy(false) }
+  }
+
+  function clearRenderResult() {
+    displayedJobId.current = null
+    setRenderJob(null)
+    setPreviewOutput('')
+    localStorage.removeItem('ai-editor-last-job')
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('job')) {
+      url.searchParams.delete('job')
+      window.history.replaceState(null, '', url)
+    }
+  }
+
+  function chooseStyle(id: string) {
+    setStyleId(id)
+    setMode('preset')
+  }
+
   function accept(file: File | undefined, kind: 'raw' | 'reference') {
     if (!file) return
     if (!file.type.startsWith('video/') && !/\.(mp4|mov|webm|mkv|avi)$/i.test(file.name)) { setNotice('Hãy chọn tệp video.'); return }
+    clearRenderResult()
     setActiveId(null)
     if (kind === 'raw') { setRaw(file); setDuration(0); if (!title) setTitle(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ')) }
     else setReference(file)
   }
 
   function navigate(next: Section) { setSection(next); setMobileMenu(false) }
-  function reset() { setSupporting([]); setRaw(null); setReference(null); setDuration(0); setTitle(''); setNotes(''); setMode('preset'); setStyleId('clean'); setActiveId(null); setRenderJob(null); setPreviewOutput(''); localStorage.removeItem('ai-editor-last-job'); navigate('studio') }
+
+  async function openJobInStudio(jobId: string) {
+    if (renderJob?.status === 'running' && renderJob.id !== jobId) { navigate('studio'); return }
+    try {
+      const response = await fetch('/api/jobs/' + jobId, { cache: 'no-store' })
+      const data = await response.json() as RenderJob & { error?: string }
+      if (!response.ok) throw new Error(data.error || 'Could not open this job.')
+      if (renderJob?.id !== data.id) {
+        setRaw(null); setReference(null); setSupporting([]); setDuration(0); setActiveId(null); setNotes('')
+      }
+      setTitle(data.title || '')
+      setRenderJob(data)
+      setPreviewOutput(data.output || '')
+      displayedJobId.current = data.id
+      localStorage.setItem('ai-editor-last-job', data.id)
+      if (data.style === 'reference') setMode('reference')
+      else if (data.style && !hiddenStyleIds.has(data.style)) { setMode('preset'); setStyleId(data.style) }
+      navigate('studio')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not open this job.') }
+  }
+  function reset() { clearRenderResult(); setSupporting([]); setRaw(null); setReference(null); setDuration(0); setTitle(''); setNotes(''); setMode('preset'); setStyleId('clean'); setActiveId(null); navigate('studio') }
 
   async function save() {
     if (!raw) { rawInput.current?.click(); return }
@@ -134,6 +209,7 @@ export default function App() {
   }
 
   function openProject(project: Project) {
+    clearRenderResult()
     setRaw(new File([project.raw], project.rawName, { type: project.raw.type || 'video/mp4' }))
     setReference(project.reference ? new File([project.reference], project.referenceName || 'reference.mp4', { type: project.reference.type || 'video/mp4' }) : null)
     setTitle(project.title); setNotes(project.notes); setDuration(project.duration); setMode(project.mode)
@@ -149,14 +225,6 @@ export default function App() {
     setNotice('Đã xóa dự án.')
   }
 
-  function exportBrief() {
-    if (!raw) { setNotice('Hãy chọn video raw trước.'); return }
-    const data = { schema: 'frameflow-edit-brief-v1', title: title.trim() || raw.name, raw: { name: raw.name, size: raw.size, duration }, reference: mode === 'reference' && reference ? { name: reference.name, size: reference.size } : null, mode, style: mode === 'preset' ? styleId : null, notes, engine: 'ghost-editor / HyperFrames', status: 'brief-only' }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
-    const link = document.createElement('a'); link.href = url; link.download = 'video-edit-brief.json'; link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
-
   async function startPreview(kind: 'preview' | 'full' = 'preview') {
     if (!raw) { rawInput.current?.click(); return }
     if (!codex?.connected) { setNotice('Hãy đăng nhập Codex trong Thiết lập trước.'); return }
@@ -164,7 +232,7 @@ export default function App() {
     if (mode === 'preset' && !canRunStyle(styleId)) {
       setNotice('Style này chưa được nối bộ dựng.'); return
     }
-    if (mode === 'preset' && ['stan-style', 'seoul-list'].includes(styleId) && !supporting.length) { setNotice('Mẫu này cần video bổ sung: quay màn hình cho Stan Style, footage/B-roll cho Seoul List.'); return }
+    if (mode === 'preset' && ['stan-style', 'seoul-list', 'pov-montage'].includes(styleId) && !supporting.length) { setNotice('Mẫu này cần video bổ sung: quay màn hình cho Stan Style, footage/B-roll cho Seoul List.'); return }
     const form = new FormData()
     form.append('source', raw)
     if (mode === 'reference' && reference) form.append('reference', reference)
@@ -173,12 +241,16 @@ export default function App() {
     form.append('title', title)
     form.append('notes', notes)
     supporting.forEach((file, index) => form.append(`support-${index + 1}`, file))
-    setUploading(true); setRenderJob(null); setPreviewOutput('')
+    setUploading(true); clearRenderResult()
+    const pendingToken = crypto.randomUUID()
+    displayedJobId.current = pendingToken
     try {
       const response = await fetch('/api/jobs', { method: 'POST', body: form })
       const data = await response.json() as RenderJob & { error?: string }
       if (!response.ok) throw new Error(data.error || 'Không gửi được video.')
+      if (displayedJobId.current !== pendingToken) return
       setRenderJob(data)
+      displayedJobId.current = data.id
       localStorage.setItem('ai-editor-last-job', data.id)
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Không gửi được video.') }
     finally { setUploading(false) }
@@ -186,13 +258,16 @@ export default function App() {
 
   async function startFull() {
     if (!renderJob || renderJob.status !== 'done' || renderJob.kind === 'full') return
+    const sourceJobId = renderJob.id
     if (renderJob.output) setPreviewOutput(renderJob.output)
     setUploading(true)
     try {
       const response = await fetch(`/api/jobs/${renderJob.id}/full`, { method: 'POST' })
       const data = await response.json() as RenderJob & { error?: string }
       if (!response.ok) throw new Error(data.error || 'Không tạo được bản đầy đủ.')
+      if (displayedJobId.current !== sourceJobId) return
       setRenderJob(data)
+      displayedJobId.current = data.id
       localStorage.setItem('ai-editor-last-job', data.id)
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Không tạo được bản đầy đủ.') }
     finally { setUploading(false) }
@@ -200,45 +275,78 @@ export default function App() {
 
   async function retryRender() {
     if (!renderJob || renderJob.status !== 'error') return
+    const sourceJobId = renderJob.id
     setUploading(true)
     try {
       const response = await fetch(`/api/jobs/${renderJob.id}/retry`, { method: 'POST' })
       const data = await response.json() as RenderJob
       if (!response.ok) throw new Error(data.error || 'Không chạy lại được job.')
+      if (displayedJobId.current !== sourceJobId) return
       setRenderJob(data)
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Không chạy lại được job.') }
     finally { setUploading(false) }
   }
 
-  return <div className="app-shell">
+  async function saveFeedback(liked: boolean) {
+    if (!renderJob || renderJob.status !== 'done') return
+    try {
+      const response = await fetch(`/api/jobs/${renderJob.id}/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ liked, comment: feedbackText }) })
+      const data = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(data.error || 'Không lưu được đánh giá.')
+      setFeedbackSaved(true)
+      setNotice('Đã lưu ý kiến để áp dụng cho các video sau.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không lưu được đánh giá.') }
+  }
+
+  return <div className={`app-shell workspace-app ${section === 'studio' ? 'studio-app' : ''}`}>
     <aside className={`sidebar ${mobileMenu ? 'sidebar-open' : ''}`}>
-      <div className="brand"><div className="brand-icon"><Film size={21}/></div><div><strong>frameflow<span>.</span></strong><small>AI VIDEO STUDIO</small></div></div>
-      <div className="sidebar-label">WORKSPACE</div>
+      <div className="brand"><img className="brand-logo" src="/igencut-logo-light.webp" alt="iGenCut"/></div>
+      <div className="sidebar-label">Workspace</div>
       <nav className="navigation">
         <button className={section === 'studio' ? 'active' : ''} onClick={() => navigate('studio')}><LayoutGrid size={18}/> Studio</button>
         <button className={section === 'projects' ? 'active' : ''} onClick={() => navigate('projects')}><Clapperboard size={18}/> Dự án <span className="nav-count">{projects.length}</span></button>
+        <button className={section === 'history' ? 'active' : ''} onClick={() => navigate('history')}><History size={18}/> Lịch sử</button>
         <button className={section === 'styles' ? 'active' : ''} onClick={() => navigate('styles')}><Sparkles size={18}/> Thư viện style</button>
       </nav>
-      <div className="sidebar-label tools-label">HỆ THỐNG</div>
-      <nav className="navigation"><button className={section === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}><Settings2 size={18}/> Thiết lập</button></nav>
-      <div className="sidebar-bottom"><div className="engine-card"><div className="engine-top"><span className="engine-orbit"><Sparkles size={16}/></span><span className={`engine-dot ${codex?.connected ? 'connected' : ''}`}/></div><strong>Codex {codex?.connected ? 'đã kết nối' : 'chưa kết nối'}</strong><p>{codex?.connected ? 'Đã nhận phiên ChatGPT trên máy. Bản nháp 15 giây đã chạy được trên Windows.' : 'Mở Thiết lập để kết nối Codex.'}</p><button onClick={() => navigate('settings')}>Xem trạng thái <ArrowRight size={15}/></button></div><div className="side-footer">Bản dùng thử <span>v0.2</span></div></div>
+      <div className="sidebar-bottom">
+        <div className="side-footer">Bản dùng thử <span>v0.2</span></div>
+        <button className={`sidebar-settings ${section === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings2 size={16}/> Cài đặt</button>
+      </div>
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb"><button className="mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={20}/></button><span>Workspace</span><span className="slash">/</span><strong>{section === 'studio' ? 'Studio' : section === 'projects' ? 'Dự án' : section === 'styles' ? 'Thư viện style' : 'Thiết lập'}</strong></div><div className="top-actions"><button className={`codex-top-status ${codex?.connected ? 'is-connected' : ''}`} onClick={() => navigate('settings')}><span/> {codex?.connected ? 'Codex đã kết nối' : 'Kết nối Codex'}</button><span className="local-badge"><span/> Lưu trên máy</span><div className="avatar">AI</div></div></header>
+      <header className="topbar editor-menu">
+        <div className="editor-menu-content">
+          <img className="editor-menu-logo" src="/igencut-logo-light.webp" alt="iGenCut"/>
+          <nav className="editor-menu-nav" aria-label="Menu chính">
+            <button className={section === "studio" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("studio")}><LayoutGrid size={16}/> Studio</button>
+            <button className={section === "projects" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("projects")}><Clapperboard size={16}/> Dự án</button>
+            <button className={section === "history" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("history")}><History size={16}/> Lịch sử</button>
+            <button className={section === "styles" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("styles")}><Sparkles size={16}/> Thư viện</button>
+            <button className={section === "settings" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("settings")}><Settings2 size={16}/> Cài đặt</button>
+          </nav>
+        </div>
+        <div className="top-actions"><button className={codex?.connected ? 'codex-top-status is-connected' : 'codex-top-status'} onClick={() => navigate('settings')}><span/> {codex?.connected ? 'Codex đã kết nối' : 'Kết nối Codex'}</button><span className="local-badge"><span/> Lưu trên máy</span><div className="avatar">AI</div></div>
+      </header>
 
-      {section === 'studio' && <div className="page studio-page"><div className="page-heading"><div><div className="eyebrow"><span/> STUDIO / TẠO VIDEO MỚI</div><h1>Video thô vào.<br/><em>Ý tưởng thành hình.</em></h1><p>Chọn video, chọn phong cách và chuẩn bị bản dựng của bạn.</p></div><div className="heading-art" aria-hidden="true"><span className="art-orbit orbit-one"/><span className="art-orbit orbit-two"/><span className="art-play"><Play size={21} fill="currentColor"/></span><span className="art-spark spark-one">✦</span></div></div><div className="workflow"><span className="workflow-active"><b>01</b> Video nguồn</span><i/><span className={raw ? 'workflow-active' : ''}><b>02</b> Phong cách</span><i/><span className={raw && (mode === 'preset' || reference) ? 'workflow-active' : ''}><b>03</b> Chuẩn bị dựng</span></div>
-        <div className="studio-grid"><div className="studio-main">
-          <section className="surface source-section"><div className="section-head"><div className="number">01</div><div><h2>Video nguồn</h2><p>Tải video gốc bạn muốn biên tập</p></div><span className="section-mark">BẮT BUỘC</span></div><input ref={rawInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'raw')}/>{raw ? <div className="uploaded-video"><div className="video-frame"><video src={rawUrl} controls preload="metadata" onLoadedMetadata={event => setDuration(event.currentTarget.duration)}/></div><div className="file-strip"><div className="file-icon"><FileVideo2 size={20}/></div><div className="file-detail"><strong>{raw.name}</strong><span>{size(raw.size)} · {time(duration)}</span></div><button className="icon-button" onClick={() => rawInput.current?.click()} title="Đổi video"><FolderOpen size={18}/></button><button className="icon-button" onClick={() => setRaw(null)} title="Xóa video"><X size={18}/></button></div></div> : <div className="upload-zone" role="button" tabIndex={0} onClick={() => rawInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') rawInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'raw') }}><div className="upload-icon"><CloudUpload size={26}/></div><strong>Kéo thả video vào đây</strong><span>hoặc <b>chọn tệp từ máy tính</b></span><small>MP4, MOV, WebM và các định dạng trình duyệt hỗ trợ</small></div>}</section>
-          <section className="surface style-section"><div className="section-head"><div className="number">02</div><div><h2>Chọn phong cách</h2><p>Chọn style có sẵn hoặc video tham chiếu</p></div></div><div className="mode-switch"><button className={mode === 'preset' ? 'selected' : ''} onClick={() => setMode('preset')}><LayoutGrid size={17}/> Style có sẵn</button><button className={mode === 'reference' ? 'selected' : ''} onClick={() => setMode('reference')}><Film size={17}/> Theo video mẫu</button></div>{mode === 'preset' ? <><div className="style-grid">{allStyles.filter(style => canRunStyle(style.id)).map(style => <button key={style.id} className={`style-card ${styleId === style.id ? 'selected' : ''}`} onClick={() => setStyleId(style.id)}><div className={`style-visual visual-${style.visual}`}><span className="visual-decoration"/><span className="visual-word">{style.name.split(' ')[0]}</span><span className="visual-line"/></div><div className="style-copy"><strong>{style.name}</strong><span>{style.category}</span></div>{styleId === style.id && <div className="style-check"><Check size={12}/></div>}</button>)}</div><div className="recipe-assets"><strong>Video bổ sung cho recipe</strong><p>Stan Style cần quay màn hình công cụ; Seoul List cần footage/B-roll đúng nội dung. Tối đa 6 video, mỗi tệp 500 MB.</p><input type="file" multiple accept="video/*,.mov,.mkv" onChange={event => { const files = Array.from(event.target.files || []); if (files.length > 6 || files.some(f => f.size > 500 * 1024 * 1024)) { setNotice('Tối đa 6 video, mỗi video không quá 500 MB.'); return } setSupporting(files) }}/>{supporting.length > 0 && <p>{supporting.map(file => file.name).join(' · ')} <button onClick={() => setSupporting([])}>Bỏ các video bổ sung</button></p>}</div><div className="recipe-overview"><strong>Recipe riêng từ ghost-editor</strong><p>Các mẫu phía trên đã nối recipe và kiểm tra–sửa tối đa 3 vòng. Hai mẫu dưới đây chỉ có hướng dẫn trong repo gốc và cần luồng đầu vào riêng; app chưa cung cấp bộ dựng cho chúng.</p><div className="recipe-grid">{editStyles.filter(style => !runnableStyleIds.has(style.id)).map(style => <article className="recipe-tile" key={style.id}><strong>{style.name}</strong><span>{style.category}</span><small>Chưa nối bộ dựng</small></article>)}</div></div></> : <div className="reference-panel"><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'reference')}/>{reference ? <div className="reference-loaded"><div className="reference-preview"><video src={referenceUrl} controls/></div><div><strong>{reference.name}</strong><span>{size(reference.size)} · Video mẫu</span><button onClick={() => referenceInput.current?.click()}>Đổi video mẫu <ArrowRight size={15}/></button></div><button className="icon-button" onClick={() => setReference(null)}><X size={18}/></button></div> : <div className="reference-drop" role="button" tabIndex={0} onClick={() => referenceInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') referenceInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'reference') }}><div><ImagePlus size={25}/></div><strong>Thêm reel làm mẫu</strong><span>Codex phân tích từng giây của video mẫu, chép lời, học chữ và nhịp dựng rồi lưu thành style riêng.</span><b>Chọn video mẫu <ArrowRight size={15}/></b></div>}</div>}</section>
-          <section className="surface details-section"><div className="section-head"><div className="number">03</div><div><h2>Chi tiết dự án</h2><p>Để lại chỉ dẫn cho bản dựng</p></div></div><div className="field-grid"><label><span>Tên dự án</span><input value={title} onChange={event => setTitle(event.target.value)} placeholder="Ví dụ: Reel giới thiệu sản phẩm"/></label><label><span>Tỉ lệ đầu ra</span><div className="select-look">9:16 · Video dọc <ChevronDown size={16}/></div></label></div><label className="notes-field"><span>Ghi chú cho Codex <small>TÙY CHỌN</small></span><textarea value={notes} onChange={event => setNotes(event.target.value)} placeholder="Ví dụ: Caption tiếng Việt, nhịp dựng nhanh ở 3 giây đầu..." rows={4}/><small>Muốn nhận đúng tên riêng hoặc thuật ngữ, thêm một dòng: Thuật ngữ: cửa khẩu, giá cả, tên sản phẩm...</small></label></section>
-        </div><aside className="right-rail"><div className="summary-card"><div className="summary-label"><Sparkles size={16}/> TỔNG QUAN</div><div className="summary-poster"><div className={`poster-inner ${mode === 'preset' ? `visual-${chosen.visual}` : 'visual-reference'}`}><span>{mode === 'preset' ? chosen.name : 'YOUR STYLE'}</span><span className="poster-play"><Play size={19} fill="currentColor"/></span><small>9:16 REEL</small></div></div><div className="summary-row"><span>Video nguồn</span><strong>{raw ? 'Đã chọn' : 'Chưa chọn'}</strong></div><div className="summary-row"><span>Phong cách</span><strong>{mode === 'preset' ? chosen.name : reference ? 'Video mẫu' : 'Chưa chọn'}</strong></div><div className="summary-row"><span>Độ dài nguồn</span><strong>{time(duration)}</strong></div><div className="summary-row"><span>Codex</span><strong>{codex?.connected ? 'Đã kết nối' : 'Chưa kết nối'}</strong></div><div className="summary-divider"/><button className="primary-button" onClick={save}>{activeId ? 'Cập nhật dự án' : 'Lưu dự án'} <ArrowRight size={18}/></button><button className="primary-button render-button" disabled={uploading || renderJob?.status === 'running'} onClick={() => startPreview('preview')}>{uploading ? 'Đang tải video...' : renderJob?.status === 'running' ? 'Đang dựng...' : 'Dựng bản nháp 15 giây'} <Film size={18}/></button><button className="primary-button render-button" disabled={uploading || renderJob?.status === 'running'} onClick={() => startPreview('full')}>Dựng video hoàn chỉnh <Film size={18}/></button>{renderJob?.status === 'done' && renderJob.kind !== 'full' && <button className="primary-button render-button" disabled={uploading} onClick={startFull}>Dựng bản đầy đủ <Film size={18}/></button>}{renderJob?.kind === 'full' && previewOutput && <a href={previewOutput} target="_blank" rel="noreferrer">Xem lại bản nháp 15 giây</a>}<button className="secondary-button" onClick={exportBrief}><ArrowDownToLine size={16}/> Xuất brief JSON</button>{renderJob && <div className="render-status"><strong>{renderJob.stage}</strong><span>{renderJob.progress}%</span>{renderJob.recipe && <small>Recipe: {renderJob.recipe}{renderJob.qualityRound ? ` · Kiểm tra ${renderJob.qualityRound}/3` : ''}</small>}{renderJob.asrModel && <small>Chép lời: faster-whisper {renderJob.asrModel}</small>}<div className="render-progress"><i style={{ width: `${renderJob.progress}%` }}/></div>{renderJob.status === 'error' && <><p>{renderJob.error}</p><button className="secondary-button" disabled={uploading} onClick={retryRender}>Chạy lại từ dữ liệu đã xử lý</button></>}{renderJob.warning && <p>{renderJob.warning}</p>}{renderJob.createdStyleId && <p>Đã lưu style “{renderJob.createdStyleName || renderJob.createdStyleId}” vào thư viện. Bạn có thể dùng lại cho video khác.</p>}{renderJob.status === 'done' && renderJob.output && <><video src={renderJob.output} controls preload="metadata"/><a href={renderJob.output} download={renderJob.kind === 'full' ? 'reel-full.mp4' : 'reel-preview.mp4'}>{renderJob.kind === 'full' ? 'Tải MP4 đầy đủ' : 'Tải MP4'}</a></>}</div>}</div><div className="rail-hint"><div><WandSparkles size={19}/></div><p><strong>Trạng thái engine</strong><br/>Mỗi mẫu có recipe riêng: chọn đoạn, dựng, kiểm tra và sửa trước khi xuất. Style từ video mẫu cũng lưu recipe để dùng lại.</p></div></aside></div></div>}
+      {section === 'studio' && <div className="page studio-page"><div className="workflow"><span className="workflow-active"><b>01</b> Video nguồn</span><i/><span className={raw ? 'workflow-active' : ''}><b>02</b> Phong cách</span><i/><span className={raw && (mode === 'preset' || reference) ? 'workflow-active' : ''}><b>03</b> Chuẩn bị dựng</span></div>
+          <div className="editor-workspace">
+            <RecentHistoryPanel onOpen={() => navigate('history')} onOpenJob={openJobInStudio} activeJob={renderJob?.status === 'running' ? renderJob : null} refreshKey={renderJob ? `${renderJob.id}:${renderJob.status}` : ''} />
+            <aside className="editor-library-pane">
+              <div className="editor-panel-heading"><div><ImagePlus size={15}/><span>Thư viện style</span></div><small>{allStyles.filter(style => canRunStyle(style.id)).length}</small></div>
+          <section className="surface style-section library-style-section"><div className="section-head"><div className="number">02</div><div><h2>Chọn phong cách</h2><p>Chọn một phong cách cho video</p></div></div>{mode === 'preset' ? <><div className="style-grid">{allStyles.filter(style => canRunStyle(style.id)).map(style => <button key={style.id} className={`style-card ${styleId === style.id ? 'selected' : ''}`} onClick={() => chooseStyle(style.id)}><div className={`style-visual visual-${style.visual} ${previewFor(style.id) ? 'has-preview' : ''}`}>{previewFor(style.id) ? <><img className="preview-backdrop" src={previewFor(style.id)!} alt="" aria-hidden="true" loading="lazy"/><img className="style-preview-image" src={previewFor(style.id)!} alt={style.name} loading="lazy"/></> : <><span className="visual-decoration"/><span className="visual-word">{style.name.split(' ')[0]}</span><span className="visual-line"/></>}</div><div className="style-copy" data-category={style.category.trim().toLocaleLowerCase('vi-VN')}><strong>{style.name}</strong><span>{style.category}</span></div>{styleId === style.id && <div className="style-check"><Check size={12}/></div>}</button>)}</div>{['stan-style', 'seoul-list', 'pov-montage'].includes(styleId) && <div className="recipe-assets"><strong>{styleId === 'stan-style' ? 'Thêm bản quay màn hình' : styleId === 'pov-montage' ? 'Thêm cảnh góc nhìn thứ nhất' : 'Thêm cảnh minh họa'}</strong><p>{styleId === 'stan-style' ? 'Mẫu này đặt màn hình công cụ phía trên người nói. Thêm bản quay màn hình đúng phần bạn đang giới thiệu.' : styleId === 'pov-montage' ? 'Thêm các clip POV thật; app chọn những cảnh khớp từng câu nói.' : 'Mẫu này dựng lời nói trên các cảnh quay. Thêm những cảnh phù hợp với nội dung video của bạn.'}</p><label className="supporting-upload">Chọn video<input type="file" multiple accept="video/*,.mov,.mkv" onChange={event => { const files = Array.from(event.target.files || []); if (files.length > 6 || files.some(f => f.size > 500 * 1024 * 1024)) { setNotice('Tối đa 6 video, mỗi video không quá 500 MB.'); return } setSupporting(files) }}/></label><p>{supporting.length ? supporting.map(file => file.name).join(' · ') : 'Chưa chọn video bổ sung'} · Tối đa 6 video, 500 MB mỗi tệp.</p>{supporting.length > 0 && <button onClick={() => setSupporting([])}>Bỏ các video này</button>}</div>}</> : <div className="reference-panel"><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'reference')}/>{reference ? <div className="reference-loaded"><div className="reference-preview"><video src={referenceUrl} controls/></div><div><strong>{reference.name}</strong><span>{size(reference.size)} · Video mẫu</span><button onClick={() => referenceInput.current?.click()}>Đổi video mẫu <ArrowRight size={15}/></button></div><button className="icon-button" onClick={() => setReference(null)}><X size={18}/></button></div> : <div className="reference-drop" role="button" tabIndex={0} onClick={() => referenceInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') referenceInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'reference') }}><div><ImagePlus size={25}/></div><strong>Thêm reel làm mẫu</strong><span>Codex phân tích từng giây của video mẫu, chép lời, học chữ và nhịp dựng rồi lưu thành style riêng.</span><b>Chọn video mẫu <ArrowRight size={15}/></b></div>}</div>}</section>
+          </aside><div className="studio-main">
+          <section className="surface source-section"><div className="section-head"><div className="number">01</div><div><h2>Video nguồn</h2><p>Tải video gốc bạn muốn biên tập</p></div><span className="section-mark">Bắt buộc</span></div><input ref={rawInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'raw')}/>{raw ? <div className="uploaded-video"><div className="video-frame"><video src={rawUrl} controls preload="metadata" onLoadedMetadata={event => setDuration(event.currentTarget.duration)}/></div><div className="file-strip"><div className="file-icon"><FileVideo2 size={20}/></div><div className="file-detail"><strong>{raw.name}</strong><span>{size(raw.size)} · {time(duration)}</span></div><button className="icon-button" onClick={() => rawInput.current?.click()} title="Đổi video"><FolderOpen size={18}/></button><button className="icon-button" onClick={() => { setRaw(null); clearRenderResult() }} title="Xóa video"><X size={18}/></button></div></div> : renderJob ? <div className="job-source-running"><div className="upload-icon"><WandSparkles size={24}/></div><strong>{renderJob.title || renderJob.style || "Video"}</strong><span>{renderJob.stage} - {renderJob.progress}%</span><div className="job-source-progress"><i style={{ width: renderJob.progress + "%" }}/></div>{renderJob.status !== "running" && <button className="job-source-upload" onClick={() => rawInput.current?.click()}>Tải video khác</button>}</div> : <div className="upload-zone" role="button" tabIndex={0} onClick={() => rawInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') rawInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'raw') }}><div className="upload-icon"><CloudUpload size={26}/></div><strong>Kéo thả video vào đây</strong><span>hoặc <b>chọn tệp từ máy tính</b></span><small>MP4, MOV, WebM và các định dạng trình duyệt hỗ trợ</small></div>}</section>
+          <section className="surface details-section"><div className="section-head"><div className="number">03</div><div><h2>Chi tiết dự án</h2><p>Để lại chỉ dẫn cho bản dựng</p></div></div><div className="field-grid"><label><span>Tên dự án</span><input value={title} onChange={event => setTitle(event.target.value)} placeholder="Ví dụ: Reel giới thiệu sản phẩm"/></label><label><span>Tỉ lệ đầu ra</span><div className="select-look">9:16 · Video dọc <ChevronDown size={16}/></div></label></div><label className="notes-field"><span>Ghi chú cho Codex <small>Tùy chọn</small></span><textarea value={notes} onChange={event => setNotes(event.target.value)} placeholder="Ví dụ: Caption tiếng Việt, nhịp dựng nhanh ở 3 giây đầu..." rows={4}/><small>Muốn nhận đúng tên riêng hoặc thuật ngữ, thêm một dòng: Thuật ngữ: cửa khẩu, giá cả, tên sản phẩm...</small></label></section>
+        </div><aside className="right-rail ai-log-pane"><div className="ai-log-heading"><div><WandSparkles size={15}/><span>Tiến trình AI</span></div><small>{renderJob?.status === 'running' ? 'Đang chạy' : 'Sẵn sàng'}</small></div><div className="summary-card"><div className="summary-label"><Sparkles size={16}/> Tổng quan</div><div className="summary-poster"><div className={`poster-inner ${mode === 'preset' ? `visual-${chosen.visual}` : 'visual-reference'}`}>{mode === 'preset' && previewFor(chosen.id) && <img className="poster-preview-image" src={previewFor(chosen.id)!} alt=""/>}<span className="poster-title">{mode === 'preset' ? chosen.name : 'YOUR STYLE'}</span><span className="poster-play"><Play size={19} fill="currentColor"/></span><small>9:16 REEL</small></div></div><div className="summary-row"><span>Video nguồn</span><strong>{raw ? 'Đã chọn' : 'Chưa chọn'}</strong></div><div className="summary-row"><span>Phong cách</span><strong>{mode === 'preset' ? chosen.name : reference ? 'Video mẫu' : 'Chưa chọn'}</strong></div><div className="summary-row"><span>Độ dài nguồn</span><strong>{time(duration)}</strong></div><div className="summary-row"><span>Codex</span><strong>{codex?.connected ? 'Đã kết nối' : 'Chưa kết nối'}</strong></div><div className="summary-divider"/><button className="primary-button" onClick={save}>{activeId ? 'Cập nhật dự án' : 'Lưu dự án'} <ArrowRight size={18}/></button><button className="primary-button render-button" disabled={uploading || renderJob?.status === 'running'} onClick={() => startPreview('full')}>Dựng video hoàn chỉnh <Film size={18}/></button>{renderJob?.status === 'done' && renderJob.kind !== 'full' && <button className="primary-button render-button" disabled={uploading} onClick={startFull}>Dựng bản đầy đủ <Film size={18}/></button>}{renderJob?.kind === 'full' && previewOutput && <a href={previewOutput} target="_blank" rel="noreferrer">Xem lại bản nháp 15 giây</a>}{raw && !renderJob && !uploading && <div className="render-empty">{noResultText}</div>}{renderJob && <div className="render-status"><div className="render-context">{renderJob.title || 'Video'} / {allStyles.find(style => style.id === renderJob.style)?.name || renderJob.style || 'Style'}</div><strong>{renderJob.stage}</strong><span>{renderJob.progress}%</span>{renderJob.recipe && <small>Recipe: {renderJob.recipe}{renderJob.qualityRound ? ` · Kiểm tra ${renderJob.qualityRound}/3` : ''}</small>}{renderJob.asrModel && <small>Chép lời: faster-whisper {renderJob.asrModel}</small>}<div className="render-progress"><i style={{ width: `${renderJob.progress}%` }}/></div>{renderJob.status === 'error' && <><p>{renderJob.error}</p><button className="secondary-button" disabled={uploading} onClick={retryRender}>Chạy lại từ dữ liệu đã xử lý</button></>}{renderJob.warning && <p>{renderJob.warning}</p>}{renderJob.createdStyleId && <p>Đã lưu style “{renderJob.createdStyleName || renderJob.createdStyleId}” vào thư viện. Bạn có thể dùng lại cho video khác.</p>}{renderJob.status === 'done' && renderJob.output && <><video src={renderJob.output} controls preload="metadata"/><a href={renderJob.output} download={renderJob.kind === 'full' ? 'reel-full.mp4' : 'reel-preview.mp4'}>{renderJob.kind === 'full' ? 'Tải MP4 đầy đủ' : 'Tải MP4'}</a></>}{renderJob.status === 'done' && <div className="feedback-box"><strong>Góp ý cho lần dựng sau</strong><textarea value={feedbackText} onChange={event => { setFeedbackText(event.target.value); setFeedbackSaved(false) }} placeholder="Bạn thích hoặc muốn sửa điều gì trong video này?" maxLength={500}/><div><button disabled={feedbackSaved} onClick={() => saveFeedback(true)}>Thích bản dựng</button><button disabled={feedbackSaved} onClick={() => saveFeedback(false)}>Cần sửa</button></div>{feedbackSaved && <small>Đã ghi nhớ ý kiến của bạn.</small>}</div>}</div>}</div><div className="rail-hint"><div><WandSparkles size={19}/></div><p><strong>Cách sử dụng</strong><br/>Chọn một mẫu dựng và tải video gốc. App tự chọn đoạn, thêm chữ, kiểm tra rồi xuất video.</p></div></aside></div></div>}
 
-      {section === 'projects' && <div className="page secondary-page"><div className="eyebrow"><span/> WORKSPACE / DỰ ÁN</div><div className="secondary-heading"><div><h1>Dự án của bạn<span>.</span></h1><p>Video và thiết lập lưu trong trình duyệt trên máy này.</p></div><button className="primary-button small" onClick={reset}><Plus size={17}/> Dự án mới</button></div>{projects.length ? <div className="project-grid">{projects.map(project => <article className="project-card" key={project.id}><div className={`project-cover ${project.mode === 'preset' ? `visual-${allStyles.find(style => style.id === project.style)?.visual || 'clean'}` : 'visual-reference'}`}><Film size={31}/><span>{project.mode === 'preset' ? allStyles.find(style => style.id === project.style)?.name || project.style : 'VIDEO MẪU'}</span></div><div className="project-info"><div><small><Clock3 size={13}/> {new Intl.DateTimeFormat('vi-VN').format(project.createdAt)}</small><button className="icon-button" onClick={() => removeProject(project)} title="Xóa dự án"><Trash2 size={16}/></button></div><h3>{project.title}</h3><p>{project.rawName}</p><div className="project-meta"><span>{time(project.duration)}</span><span>{size(project.size)}</span></div><button className="open-project" onClick={() => openProject(project)}>Mở dự án <ArrowRight size={16}/></button></div></article>)}</div> : <div className="empty-state"><FolderOpen size={34}/><h2>Chưa có dự án nào</h2><p>Bắt đầu với video raw đầu tiên của bạn.</p><button onClick={reset}>Tạo dự án <ArrowRight size={16}/></button></div>}</div>}
+      {section === 'history' && <HistoryPage onOpenJob={openJobInStudio}/>}
 
-      {section === 'styles' && <div className="page secondary-page"><div className="eyebrow"><span/> WORKSPACE / STYLE</div><div className="secondary-heading"><div><h1>Thư viện style<span>.</span></h1><p>Các công thức dựng từ ghost-editor.</p></div></div><div className="library-grid">{allStyles.map(style => <article className="library-card" key={style.id}><div className={`library-visual visual-${style.visual}`}><span>{style.name}</span><i/></div><div className="library-body"><small>{style.category}</small><h3>{style.name}</h3><p>{style.description}</p><div className="tags">{style.tags.map(tag => <span key={tag}>{tag}</span>)}</div><button disabled={!canRunStyle(style.id)} onClick={() => { setStyleId(style.id); setMode('preset'); navigate('studio') }}>{canRunStyle(style.id) ? 'Dùng style này' : 'Chưa nối bộ dựng'} <ArrowRight size={16}/></button></div></article>)}</div></div>}
+      {section === 'projects' && <div className="page secondary-page"><div className="secondary-toolbar"><button className="primary-button small" onClick={reset}><Plus size={17}/> Dự án mới</button></div>{projects.length ? <div className="project-grid">{projects.map(project => <article className="project-card" key={project.id}><div className={`project-cover ${project.mode === 'preset' ? `visual-${allStyles.find(style => style.id === project.style)?.visual || 'clean'}` : 'visual-reference'}`}><Film size={31}/><span>{project.mode === 'preset' ? allStyles.find(style => style.id === project.style)?.name || project.style : 'VIDEO MẪU'}</span></div><div className="project-info"><div><small><Clock3 size={13}/> {new Intl.DateTimeFormat('vi-VN').format(project.createdAt)}</small><button className="icon-button" onClick={() => removeProject(project)} title="Xóa dự án"><Trash2 size={16}/></button></div><h3>{project.title}</h3><p>{project.rawName}</p><div className="project-meta"><span>{time(project.duration)}</span><span>{size(project.size)}</span></div><button className="open-project" onClick={() => openProject(project)}>Mở dự án <ArrowRight size={16}/></button></div></article>)}</div> : <div className="empty-state"><FolderOpen size={34}/><h2>Chưa có dự án nào</h2><p>Bắt đầu với video raw đầu tiên của bạn.</p><button onClick={reset}>Tạo dự án <ArrowRight size={16}/></button></div>}</div>}
 
-      {section === 'settings' && <div className="page secondary-page"><div className="eyebrow"><span/> WORKSPACE / THIẾT LẬP</div><div className="secondary-heading"><div><h1>Thiết lập<span>.</span></h1><p>Trạng thái các thành phần trên Windows.</p></div></div><div className="codex-connection surface"><div className="connection-symbol"><WandSparkles size={24}/></div><div className="connection-copy"><div className="connection-heading"><h2>Kết nối Codex trên máy</h2><span className={`connection-pill ${codex?.connected ? 'online' : ''}`}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</span></div><p>{codex?.detail || 'Đang kiểm tra đăng nhập...'}</p>{!codex?.connected && <small>Nếu trình duyệt không tự mở, chạy <code>codex login</code> trong PowerShell rồi nhấn “Kiểm tra lại”.</small>}</div><div className="connection-buttons">{!codex?.connected && <button className="connection-test" onClick={loginCodex} disabled={!codex?.installed || loginBusy}>{loginBusy ? 'Đang chờ đăng nhập...' : 'Đăng nhập ChatGPT'} <ArrowRight size={15}/></button>}<button className="connection-refresh" onClick={refreshCodex}>Kiểm tra lại</button></div></div><div className="settings-layout"><div className="surface settings-card"><h2>Trạng thái hệ thống</h2><div className="status-row"><div className="status-icon good"><Check size={18}/></div><div><strong>Giao diện Studio</strong><span>Đang chạy</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className="status-icon good"><HardDrive size={18}/></div><div><strong>Lưu dự án cục bộ</strong><span>IndexedDB</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className="status-icon good"><FolderOpen size={18}/></div><div><strong>Mã nguồn ghost-editor</strong><span>Thư mục ghost-editor/</span></div><b className="status-ready">ĐÃ TẢI</b></div><div className="status-row"><div className="status-icon good"><Settings2 size={18}/></div><div><strong>Pipeline dựng Windows</strong><span>Bản nháp 15 giây đã chạy trên Windows</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className={codex?.connected ? 'status-icon good' : 'status-icon pending'}><WandSparkles size={18}/></div><div><strong>Codex agent</strong><span>{codex?.connected ? 'Phiên ChatGPT đã sẵn sàng' : 'Cần đăng nhập Codex CLI'}</span></div><b className={codex?.connected ? 'status-ready' : 'status-pending'}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</b></div></div><div className="settings-side"><Sparkles size={24}/><h3>Bản dùng thử</h3><p>Codex đã kết nối qua backend cục bộ. Chọn style trong Studio để dựng bản nháp hoặc video hoàn chỉnh.</p><button onClick={() => navigate('studio')}>Quay lại Studio <ArrowRight size={16}/></button></div></div></div>}
+      {section === 'styles' && <div className="page secondary-page"><div className="library-grid">{allStyles.filter(style => canRunStyle(style.id)).map(style => <article className="library-card" key={style.id}><div className={`library-visual visual-${style.visual} ${previewFor(style.id) ? 'has-preview' : ''}`}>{previewFor(style.id) ? <><img className="preview-backdrop" src={previewFor(style.id)!} alt="" aria-hidden="true" loading="lazy"/><img className="library-preview-image" src={previewFor(style.id)!} alt={style.name} loading="lazy"/></> : <><span>{style.name}</span><i/></>}</div><div className="library-body" data-category={style.category.trim().toLocaleLowerCase('vi-VN')}><small>{style.category}</small><h3>{style.name}</h3><p>{style.description}</p><div className="tags">{style.tags.map(tag => <span key={tag}>{tag}</span>)}</div><button disabled={!canRunStyle(style.id)} onClick={() => { chooseStyle(style.id); navigate('studio') }}>{canRunStyle(style.id) ? 'Dùng style này' : 'Chưa nối bộ dựng'} <ArrowRight size={16}/></button></div></article>)}</div></div>}
+
+      {section === 'settings' && <div className="page secondary-page"><div className="codex-connection surface"><div className="connection-symbol"><WandSparkles size={24}/></div><div className="connection-copy"><div className="connection-heading"><h2>Kết nối Codex trên máy</h2><span className={`connection-pill ${codex?.connected ? 'online' : ''}`}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</span></div><p>{codex?.detail || 'Đang kiểm tra đăng nhập...'}</p>{!codex?.connected && <small>Nếu trình duyệt không tự mở, chạy <code>codex login</code> trong PowerShell rồi nhấn “Kiểm tra lại”.</small>}</div><div className="connection-buttons">{!codex?.connected && <button className="connection-test" onClick={loginCodex} disabled={!codex?.installed || loginBusy}>{loginBusy ? 'Đang chờ đăng nhập...' : 'Đăng nhập ChatGPT'} <ArrowRight size={15}/></button>}<button className="connection-refresh" onClick={refreshCodex}>Kiểm tra lại</button></div></div>{codex?.connected && <div className="codex-model surface"><div><h2>Model Codex</h2><p>Chọn model dùng cho các lần dựng video tiếp theo trong tài khoản đang đăng nhập.</p></div><label><span>Model đang dùng</span><select value={codex.model || ''} disabled={modelBusy} onChange={event => void chooseCodexModel(event.target.value)}><option value="">Mặc định của Codex</option>{codex.models?.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>{!codex.models?.length && <small>Chưa có danh sách model từ Codex CLI. Hãy nhấn “Kiểm tra lại” sau khi đăng nhập.</small>}</div>}<div className="settings-layout"><div className="surface settings-card"><h2>Trạng thái hệ thống</h2><div className="status-row"><div className="status-icon good"><Check size={18}/></div><div><strong>Giao diện Studio</strong><span>Đang chạy</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className="status-icon good"><HardDrive size={18}/></div><div><strong>Lưu dự án cục bộ</strong><span>IndexedDB</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className={codex?.connected ? 'status-icon good' : 'status-icon pending'}><WandSparkles size={18}/></div><div><strong>Codex agent</strong><span>{codex?.connected ? 'Phiên ChatGPT đã sẵn sàng' : 'Cần đăng nhập Codex CLI'}</span></div><b className={codex?.connected ? 'status-ready' : 'status-pending'}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</b></div></div></div></div>}
     </main>
     {notice && <div className="toast"><span>{notice}</span><button onClick={() => setNotice('')}><X size={16}/></button></div>}
     {mobileMenu && <button className="mobile-overlay" onClick={() => setMobileMenu(false)} aria-label="Đóng menu"/>}
