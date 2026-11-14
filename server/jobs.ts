@@ -350,16 +350,22 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       } else {
         missingVisualPrompt = illustration.prompt
         if (!native) {
-          job.stage = 'Codex dựng minh họa bằng ký hiệu'; job.progress = 67
-          const componentPath = join(build, 'illustration-component.json')
-          if (!existsSync(componentPath)) {
+          try {
+            job.stage = 'Codex dựng minh họa bằng ký hiệu'; job.progress = 67
+            const componentPath = join(build, 'illustration-component.json')
             const spoken = words.segments.filter(segment => segment.start < illustration.to && segment.end > illustration.at).map(segment => segment.text).join(' ').slice(0, 500)
-            await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/illustration-component-schema.json'), '-o', componentPath, '-'], { input: `Plan a concise vector/icon illustration for a vertical Vietnamese reel. Return JSON only. No photos, external assets, HTML, scripts, invented facts or long text. Use 2-7 elements from icon/text/box/circle/line. Available icons: question, check, document, book, lightbulb, chart, clock, location, money, arrow, star. Place them in a legible composition within 1080x1920, x=40..1000, y=160..1700. Use short labels only if they are exact spoken words; empty text otherwise. Pick colors consistent with accent ${plan.accent}. The renderer animates each element by delay, draws lines as SVG, and hides captions during this short scene. Illustration idea: ${illustration.prompt.slice(0, 500)}. Spoken words near the scene: ${spoken}. Style: ${job.style}. Each element requires type, icon, text, x, y, w, h, x2, y2, delay, color, size; use neutral defaults for unused fields.` })
+            if (!existsSync(componentPath)) {
+              await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/illustration-component-schema.json'), '-o', componentPath, '-'], { input: `Plan a concise vector/icon illustration for a vertical Vietnamese reel. Return JSON only. No photos, external assets, HTML, scripts, invented facts or long text. Use 2-7 elements from icon/text/box/circle/line. Available icons: question, check, document, book, lightbulb, chart, clock, location, money, arrow, star. Place them in a legible composition within 1080x1920, x=40..1000, y=160..1700. Use short labels only if they are exact spoken words; empty text otherwise. Pick colors consistent with accent ${plan.accent}. The renderer animates each element by delay, draws lines as SVG, and hides captions during this short scene. Illustration idea: ${illustration.prompt.slice(0, 500)}. Spoken words near the scene: ${spoken}. Style: ${job.style}. Each element requires type, icon, text, x, y, w, h, x2, y2, delay, color, size; use neutral defaults for unused fields.` })
+            }
+            const component = JSON.parse(readFileSync(componentPath, 'utf8')) as { elements?: Record<string, unknown>[] }
+            const elements = (component.elements || []).filter(item => ['icon', 'text', 'box', 'circle', 'line'].includes(String(item.type)) && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)) && /^#[0-9a-f]{6}$/i.test(String(item.color)))
+              .slice(0, 7).map(item => ({ ...item, text: typeof item.text === 'string' && spoken.toLocaleLowerCase('vi-VN').includes(item.text.toLocaleLowerCase('vi-VN')) ? item.text.slice(0, 40) : '' }))
+            if (elements.length >= 2) beats.push({ type: 'scene', kind: 'component', at: illustration.at, to: illustration.to, captions: false, elements, bg: '#141a23' })
+            else job.warning = [job.warning, 'Không tìm thấy ảnh phù hợp và Codex chưa tạo được minh họa ký hiệu hợp lệ.'].filter(Boolean).join(' ')
+          } catch (error) {
+            assertNotCancelled(job)
+            job.warning = [job.warning, `Không tạo được minh họa ký hiệu: ${error instanceof Error ? error.message.slice(-120) : 'lỗi không xác định'}`].filter(Boolean).join(' ')
           }
-          const component = JSON.parse(readFileSync(componentPath, 'utf8')) as { reason?: string; elements?: Record<string, unknown>[] }
-          const elements = (component.elements || []).filter(item => ['icon', 'text', 'box', 'circle', 'line'].includes(String(item.type)) && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)) && /^#[0-9a-f]{6}$/i.test(String(item.color))).slice(0, 7)
-          if (elements.length >= 2) beats.push({ type: 'scene', kind: 'component', at: illustration.at, to: illustration.to, captions: false, elements, bg: '#141a23' })
-          else job.warning = [job.warning, 'Không tìm thấy ảnh phù hợp và Codex chưa tạo được minh họa ký hiệu hợp lệ.'].filter(Boolean).join(' ')
         }
       }
     }
@@ -706,7 +712,7 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
       if (reference) copyFileSync(parentReference, reference)
       mkdirSync(join(directory, 'build'), { recursive: true })
       mkdirSync(join(directory, 'assets'), { recursive: true })
-      for (const relative of ['build/words.whisper.json', 'build/face.json', 'assets/talk.mp4', 'assets/talk-matte.webm', 'assets/illustration-imagegen.png']) {
+      for (const relative of ['build/words.whisper.json', 'build/face.json', 'assets/talk.mp4', 'assets/talk-matte.webm']) {
         const cached = join(parentDir, relative)
         if (existsSync(cached)) copyFileSync(cached, join(directory, relative))
       }
