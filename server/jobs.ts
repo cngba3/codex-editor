@@ -20,7 +20,9 @@ import { buildNative, prepareNative } from './native-pipeline'
 import { finishRecipe } from './recipe-quality'
 import { selectedModel } from './codex-model'
 
-type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
+type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; correctionRequest?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
+type JobMessage = { role: 'user' | 'agent'; text: string; createdAt: number; queuedForRevision?: boolean }
+type PendingRestart = { job: Job; source: string; reference?: string; notes: string }
 const root = process.cwd()
 const jobsRoot = join(root, 'jobs')
 const ghost = join(root, 'ghost-editor')
@@ -31,10 +33,11 @@ const referenceStyleSchema = join(root, 'server', 'reference-style-schema.json')
 const amberSchema = join(root, 'server', 'amber-schema.json')
 // Vite reloads this module during development. Keep live jobs in the Node
 // process so a source edit cannot erase their status or admit a duplicate job.
-const shared = globalThis as typeof globalThis & { __aiEditorJobs?: { jobs: Map<string, Job>; busy: boolean; children?: Map<string, Set<ChildProcess>>; cancelled?: Set<string> } }
+const shared = globalThis as typeof globalThis & { __aiEditorJobs?: { jobs: Map<string, Job>; busy: boolean; children?: Map<string, Set<ChildProcess>>; cancelled?: Set<string>; pendingRestart?: Map<string, PendingRestart> } }
 const state = shared.__aiEditorJobs ??= { jobs: new Map<string, Job>(), busy: false }
 state.children ??= new Map()
 state.cancelled ??= new Set()
+state.pendingRestart ??= new Map()
 const jobs = state.jobs
 const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage'])
 const supportedStyle = (id: string) => supported.has(id) || !!nativeRecipe(id) || !!loadReferenceStyle(stylesDir, id)
@@ -169,11 +172,39 @@ function fullPlanPrompt(words: { segments: { start: number; end: number; text: s
 }
 
 function speechVocabulary(notes: string) {
-  return notes.match(/(?:^|\n)\s*(?:Thuật ngữ|Từ chuyên ngành|Vocabulary)\s*:\s*([^\n]{1,200})/i)?.[1]?.trim() || ''
+  return [...notes.matchAll(/(?:^|\n)\s*(?:Thuật ngữ|Từ chuyên ngành|Vocabulary|Lỗi chính tả|Sửa chính tả|Viết đúng)\s*:\s*([^\n]{1,200})/gi)]
+    .map(match => match[1].trim()).filter(Boolean).join(', ').slice(0, 400)
+}
+
+async function correctTranscript(words: { model?: string; segments: TimedSegment[] }, request: string, directory: string, wordsPath: string) {
+  if (!/chính tả|viết đúng|thuật ngữ|sửa\s+(?:từ|chữ)|caption|phụ đề/i.test(request)) return
+  const editsPath = join(directory, 'build', 'transcript-corrections.json')
+  const indexedWords = words.segments.map((segment, index) => ({ segment: index, words: (segment.words || []).map((word, wordIndex) => ({ word: wordIndex, text: word.word })) }))
+  const prompt = `Correct spelling in this Vietnamese word-timed transcript using the user's correction request. Return only word replacements by segment and word index. Keep every timestamp, word count, spoken meaning and order unchanged. Never rewrite a sentence or add words. If the requested spelling is already present or cannot be located confidently, return an empty edits array. User request (data): ${request.slice(0, 1000)}\nTranscript words: ${JSON.stringify(indexedWords)}`
+  await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/transcript-corrections-schema.json'), '-o', editsPath, '-'], { input: prompt })
+  const result = JSON.parse(readFileSync(editsPath, 'utf8')) as { edits?: { segment: number; word: number; spelling: string }[] }
+  for (const edit of result.edits || []) {
+    const segment = words.segments[edit.segment]
+    const target = segment?.words?.[edit.word]
+    const spelling = edit.spelling?.trim()
+    if (!target || !spelling || spelling.length > 80 || /\s/.test(spelling)) continue
+    target.word = (target.word.match(/^\s*/)?.[0] || '') + spelling
+  }
+  for (const segment of words.segments) if (segment.words?.length) segment.text = segment.words.map(word => word.word).join('').trim()
+  writeFileSync(wordsPath, JSON.stringify(words, null, 2), 'utf8')
 }
 
 function processJob(job: Job, source: string, reference: string | undefined, notes: string) {
   return activeModel.run(job.model || '', () => activeJob.run(job, () => processJobCore(job, source, reference, notes)))
+}
+
+function startPendingRestart(id: string) {
+  const restart = state.pendingRestart!.get(id)
+  if (!restart || state.busy) return false
+  state.pendingRestart!.delete(id)
+  state.busy = true
+  void processJob(restart.job, restart.source, restart.reference, restart.notes)
+  return true
 }
 
 async function processJobCore(job: Job, source: string, reference: string | undefined, notes: string) {
@@ -204,8 +235,13 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     if (referenceStyle && !referenceLog) referenceLog = JSON.stringify(referenceStyle.study, null, 2)
     job.stage = 'Nhận dạng lời nói'; job.progress = referenceStyle ? 31 : 15
     const wordsPath = join(build, 'words.whisper.json')
-    if (!existsSync(wordsPath)) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(notes)])
+    if (!existsSync(wordsPath)) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(job.notes || notes)])
     const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: TimedSegment[] }
+    if (job.correctionRequest) {
+      job.stage = 'Agent đang áp dụng lời sửa'; job.progress = 25
+      await correctTranscript(words, job.correctionRequest, directory, wordsPath)
+      delete job.correctionRequest
+    }
     job.asrModel = words.model
     if (!words.segments.length) throw new Error('Không tìm thấy lời nói để dựng Reel.')
     job.stage = 'Codex chọn đoạn'; job.progress = referenceStyle ? 39 : 35
@@ -216,7 +252,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     const speech = speechCandidates(words.segments)
     writeFileSync(join(build, 'speech-candidates.json'), JSON.stringify(speech, null, 2), 'utf8')
     const cutRules = `\nUse these WORD timestamps to split takes around false starts, repeated attempts and pauses >0.7s, instead of retaining a whole segment just because its transcript is one paragraph. Candidate utterances include speech density (quality), ASR confidence (uncertainty estimate, not proof of delivery), and likely repeated takes: ${JSON.stringify(speech)}. Compare repeats for completeness, clarity and natural delivery; select the strongest version. Cut only between complete words, leave small natural breathing room, keep the best complete version of each thought. Do not invent speech or silently rewrite uncertain ASR. Timings [word,start,end]: ${JSON.stringify(wordTiming)}\nUser taste from earlier videos (preferences, not facts about this source):\n${tastePrompt(jobsRoot, job.style) || '(none)'}\nReturn JSON only; no tools.`
-    if (!existsSync(planPath)) await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, notes, planStyle, referenceLog) : planPrompt(words, seconds, notes, planStyle, referenceLog)) + illustrationRule + styleRule + recipePrompt(recipe) + cutRules })
+    if (!existsSync(planPath)) await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, job.notes || notes, planStyle, referenceLog) : planPrompt(words, seconds, job.notes || notes, planStyle, referenceLog)) + illustrationRule + styleRule + recipePrompt(recipe) + cutRules })
     const plan = JSON.parse(readFileSync(planPath, 'utf8')) as { title: string; preset: string; captionStyle: string; accent: string; takes: { a: number; b: number }[]; highlights: string[]; graphics: { kind: 'big' | 'scene'; text: string; at: number; to: number }[]; illustration: { prompt: string; at: number; to: number } }
     const takes = alignTakeEdges(plan.takes.filter(t => Number.isFinite(t.a) && Number.isFinite(t.b) && t.a >= 0 && t.b <= seconds + .1 && t.b - t.a > .3), words.segments).sort((a, b) => a.a - b.a)
     const total = takes.reduce((sum, t) => sum + t.b - t.a, 0)
@@ -281,9 +317,9 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     }
     const beats: Record<string, unknown>[] = [...graphics]
     const illustration = plan.illustration
+    let missingVisualPrompt = ''
     if (illustration?.prompt?.trim() && Number.isFinite(illustration.at) && Number.isFinite(illustration.to) && illustration.to - illustration.at >= 1 && illustration.to - illustration.at <= 3 && takes.some(t => illustration.at >= t.a && illustration.to <= t.b)) {
       job.stage = 'Tìm ảnh minh họa trên Pexels'; job.progress = 66
-      const generatedImage = join(assets, 'illustration-imagegen.png')
       const sourcePath = join(build, 'illustration-source.json')
       const previousChoice = existsSync(sourcePath) ? JSON.parse(readFileSync(sourcePath, 'utf8')) as { prompt?: string; candidates?: StockImage[]; selected?: StockImage | null } : null
       const cached = !!(previousChoice && Array.isArray(previousChoice.candidates) && 'selected' in previousChoice && (!previousChoice.prompt || previousChoice.prompt === illustration.prompt) && previousChoice.candidates.every(item => existsSync(item.file)))
@@ -305,14 +341,26 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       }
       writeFileSync(sourcePath, JSON.stringify({ prompt: illustration.prompt, candidates, selected: stock }, null, 2), 'utf8')
       if (stock?.search === 'Wikimedia Commons') job.warning = [job.warning, 'Pexels và Google Images không trả ảnh phù hợp; đã chọn ảnh chụp có nguồn từ Wikimedia Commons.'].filter(Boolean).join(' ')
-      const image = stock?.file || (existsSync(generatedImage) ? generatedImage : null)
+      const image = stock?.file || null
       if (image) {
         const src = `assets/${basename(image)}`
         beats.push(amberStyle?.illustrationLayout === 'photo-overlay'
           ? { type: 'photo', at: illustration.at, to: illustration.to, src, w: 740, h: 380, y: 900 }
           : { type: 'scene', kind: 'image', at: illustration.at, to: illustration.to, src, captions: false, zoom: [1, 1.08], in: 'wipe' })
       } else {
-        job.warning = [job.warning, 'Không tìm được ảnh phù hợp; bỏ qua minh họa để tránh hình vector kém chất lượng.'].filter(Boolean).join(' ')
+        missingVisualPrompt = illustration.prompt
+        if (!native) {
+          job.stage = 'Codex dựng minh họa bằng ký hiệu'; job.progress = 67
+          const componentPath = join(build, 'illustration-component.json')
+          if (!existsSync(componentPath)) {
+            const spoken = words.segments.filter(segment => segment.start < illustration.to && segment.end > illustration.at).map(segment => segment.text).join(' ').slice(0, 500)
+            await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/illustration-component-schema.json'), '-o', componentPath, '-'], { input: `Plan a concise vector/icon illustration for a vertical Vietnamese reel. Return JSON only. No photos, external assets, HTML, scripts, invented facts or long text. Use 2-7 elements from icon/text/box/circle/line. Available icons: question, check, document, book, lightbulb, chart, clock, location, money, arrow, star. Place them in a legible composition within 1080x1920, x=40..1000, y=160..1700. Use short labels only if they are exact spoken words; empty text otherwise. Pick colors consistent with accent ${plan.accent}. The renderer animates each element by delay, draws lines as SVG, and hides captions during this short scene. Illustration idea: ${illustration.prompt.slice(0, 500)}. Spoken words near the scene: ${spoken}. Style: ${job.style}. Each element requires type, icon, text, x, y, w, h, x2, y2, delay, color, size; use neutral defaults for unused fields.` })
+          }
+          const component = JSON.parse(readFileSync(componentPath, 'utf8')) as { reason?: string; elements?: Record<string, unknown>[] }
+          const elements = (component.elements || []).filter(item => ['icon', 'text', 'box', 'circle', 'line'].includes(String(item.type)) && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)) && /^#[0-9a-f]{6}$/i.test(String(item.color))).slice(0, 7)
+          if (elements.length >= 2) beats.push({ type: 'scene', kind: 'component', at: illustration.at, to: illustration.to, captions: false, elements, bg: '#141a23' })
+          else job.warning = [job.warning, 'Không tìm thấy ảnh phù hợp và Codex chưa tạo được minh họa ký hiệu hợp lệ.'].filter(Boolean).join(' ')
+        }
       }
     }
     if (job.style === 'pov-montage') {
@@ -339,7 +387,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       job.stage = 'Chuẩn bị bản cắt cho recipe'; job.progress = 67
       await prepareNative({ root, directory, ffmpeg: ffmpeg!, run, takes, words, title: plan.title || job.title, recipe })
       await finishRecipe({ root, directory, recipe, run: (command, args, options) => run(command, args, { ...options, job }), job,
-        build: (round, feedback) => buildNative({ root, directory, recipe, codex: existsSync(executable) ? executable : 'codex.exe', run, round, feedback }) })
+        build: (round, feedback) => buildNative({ root, directory, recipe, codex: existsSync(executable) ? executable : 'codex.exe', run, round, feedback, notes: job.notes || notes, missingVisual: missingVisualPrompt }) })
       assertNotCancelled(job)
       job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
       return
@@ -408,6 +456,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     state.busy = false
     state.children!.delete(job.id)
     state.cancelled!.delete(job.id)
+    startPendingRestart(job.id)
   }
 }
 
@@ -452,6 +501,82 @@ function findJob(id: string): Job | undefined {
 
 export async function jobsApi(request: IncomingMessage, response: ServerResponse, next: () => void) {
   const path = request.url?.split('?')[0] || ''
+  const detailMatch = path.match(/^\/api\/jobs\/([a-f0-9-]{36})\/studio$/)
+  if (detailMatch && request.method === 'GET') {
+    const job = findJob(detailMatch[1])
+    if (!job) { json(response, 404, { error: 'Không tìm thấy job.' }); return }
+    const directory = join(jobsRoot, job.id)
+    const read = (file: string) => { try { return JSON.parse(readFileSync(join(directory, file), 'utf8')) } catch { return null } }
+    const words = read('build/words.whisper.json') as { segments?: { start: number; end: number; text: string }[] } | null
+    const plan = read('build/codex-plan.json') as { takes?: { a: number; b: number }[] } | null
+    const reel = read('reel.json') as { takes?: { a: number; b: number }[]; beats?: { at: number; to: number; text?: string; lines?: string[]; type?: string }[]; music?: unknown } | null
+    const messages = read('messages.json') as JobMessage[] | null
+    const preview = join(directory, 'build/finals/reel (preview).mp4')
+    json(response, 200, { job, transcript: (words?.segments || []).map(s => ({ start: s.start, end: s.end, text: s.text })).slice(0, 300), takes: reel?.takes || plan?.takes || [], beats: (reel?.beats || []).map(b => ({ at: b.at, to: b.to, text: b.text || b.lines?.join(' '), type: b.type })).slice(0, 100), music: Boolean(reel?.music), previewAvailable: existsSync(preview) && statSync(preview).size > 0, messages: messages || [] })
+    return
+  }
+  const messageMatch = path.match(/^\/api\/jobs\/([a-f0-9-]{36})\/message$/)
+  if (messageMatch && request.method === 'POST') {
+    if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    const job = findJob(messageMatch[1])
+    if (!job) { json(response, 404, { error: 'Không tìm thấy job.' }); return }
+    try {
+      let body = ''
+      for await (const chunk of request) { body += Buffer.from(chunk).toString('utf8'); if (body.length > 2400) throw new Error('Yêu cầu quá dài.') }
+      const message = (JSON.parse(body) as { text?: unknown }).text
+      if (typeof message !== 'string' || !message.trim() || message.length > 1000) throw new Error('Hãy nhập yêu cầu tối đa 1000 ký tự.')
+      const directory = join(jobsRoot, job.id)
+      const file = join(directory, 'messages.json')
+      let messages: JobMessage[] = []
+      try { messages = JSON.parse(readFileSync(file, 'utf8')) as JobMessage[] } catch { /* first message */ }
+      if (job.cancelRequested) throw new Error('Job đang chuyển sang bản sửa. Hãy gửi tiếp khi bản mới bắt đầu.')
+      const live = job.status === 'running' && job.progress < 15
+      if (live) { job.notes = [job.notes, message.trim()].filter(Boolean).join('\n').slice(-2000); writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8') }
+      if (job.status === 'running' && !live) {
+        const sourceFile = join(directory, 'source.mp4')
+        if (!existsSync(sourceFile)) throw new Error('Không tìm thấy video nguồn để áp dụng yêu cầu ngay.')
+        const id = randomUUID()
+        const nextDirectory = join(jobsRoot, id)
+        mkdirSync(join(nextDirectory, 'build'), { recursive: true })
+        mkdirSync(join(nextDirectory, 'assets'), { recursive: true })
+        const nextSource = join(nextDirectory, 'source.mp4')
+        copyFileSync(sourceFile, nextSource)
+        for (const relative of ['build/words.whisper.json', 'build/face.json', 'build/talk-ready', 'assets/talk.mp4']) {
+          const cached = join(directory, relative)
+          if (existsSync(cached)) copyFileSync(cached, join(nextDirectory, relative))
+        }
+        const referenceFile = join(directory, 'reference.mp4')
+        const nextReference = existsSync(referenceFile) ? join(nextDirectory, 'reference.mp4') : undefined
+        if (nextReference) copyFileSync(referenceFile, nextReference)
+        for (const fileName of readdirSync(join(directory, 'assets')).filter(name => /^support-[1-6]\.mp4$/.test(name))) copyFileSync(join(directory, 'assets', fileName), join(nextDirectory, 'assets', fileName))
+        if (existsSync(join(directory, 'assets/supporting.json'))) copyFileSync(join(directory, 'assets/supporting.json'), join(nextDirectory, 'assets/supporting.json'))
+        const now = Date.now()
+        const nextNotes = [job.notes, message.trim()].filter(Boolean).join('\n').slice(-2000)
+        const replacement: Job = { id, createdAt: now, startedAt: now, stage: 'Đang áp dụng yêu cầu từ Agent', progress: 1, status: 'running', cancelSupported: true, title: job.title, style: job.style, kind: job.kind, parentId: job.id, notes: nextNotes, correctionRequest: message.trim(), model: job.model || selectedModel() }
+        jobs.set(id, replacement)
+        writeFileSync(join(nextDirectory, 'job.json'), JSON.stringify(replacement, null, 2), 'utf8')
+        writeFileSync(join(nextDirectory, 'messages.json'), JSON.stringify([{ role: 'user', text: message.trim(), createdAt: now }, { role: 'agent', text: 'Đã nhận yêu cầu. Mình đang dựng lại ngay với nội dung sửa của bạn.', createdAt: now }], null, 2), 'utf8')
+        messages.push({ role: 'user', text: message.trim(), createdAt: now }, { role: 'agent', text: 'Đang dừng lượt xuất cũ và dựng lại ngay theo yêu cầu.', createdAt: now })
+        writeFileSync(file, JSON.stringify(messages, null, 2), 'utf8')
+        state.pendingRestart!.set(job.id, { job: replacement, source: nextSource, reference: nextReference, notes: nextNotes })
+        state.cancelled!.add(job.id)
+        job.cancelRequested = true
+        job.stage = 'Đang chuyển sang bản sửa'
+        writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
+        for (const child of state.children!.get(job.id) || []) stopProcessTree(child)
+        const restartTimer = setInterval(() => {
+          if (!state.pendingRestart!.has(job.id) || startPendingRestart(job.id)) clearInterval(restartTimer)
+        }, 250)
+        restartTimer.unref()
+        json(response, 202, { messages, replacementJob: replacement })
+        return
+      }
+      messages.push({ role: 'user', text: message.trim(), createdAt: Date.now(), queuedForRevision: !live }, { role: 'agent', text: live ? 'Đã nhận yêu cầu. Mình sẽ đưa vào bước chọn đoạn sắp tới.' : job.status === 'running' ? 'Đã lưu yêu cầu. Job hiện tại tiếp tục xuất video; có thể dùng yêu cầu này để sửa sau khi xem kết quả.' : 'Đã lưu yêu cầu để sửa bản dựng tiếp theo.', createdAt: Date.now() })
+      writeFileSync(file, JSON.stringify(messages, null, 2), 'utf8')
+      json(response, 200, { messages, appliedToCurrentPlan: live })
+    } catch (error) { json(response, 400, { error: error instanceof Error ? error.message : 'Không lưu được yêu cầu.' }) }
+    return
+  }
   if (path === '/api/jobs' && request.method === 'GET') {
     const history = (existsSync(jobsRoot) ? readdirSync(jobsRoot, { withFileTypes: true }) : [])
       .filter(entry => entry.isDirectory() && /^[a-f0-9-]{36}$/.test(entry.name))
@@ -524,6 +649,42 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
     void processJob(job, source, existsSync(reference) ? reference : undefined, job.notes || '')
     return
   }
+  const reviseMatch = path.match(/^\/api\/jobs\/([a-f0-9-]{36})\/revise$/)
+  if (reviseMatch && request.method === 'POST') {
+    if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    if (state.busy) { json(response, 409, { error: 'Đang có video khác được dựng.' }); return }
+    const parent = findJob(reviseMatch[1])
+    const parentDir = join(jobsRoot, reviseMatch[1])
+    const sourceFile = join(parentDir, 'source.mp4')
+    if (!parent || parent.status !== 'done' || !existsSync(sourceFile)) { json(response, 409, { error: 'Cần chờ video hiện tại xuất xong.' }); return }
+    let messages: JobMessage[] = []
+    try { messages = JSON.parse(readFileSync(join(parentDir, 'messages.json'), 'utf8')) as JobMessage[] } catch { /* no messages */ }
+    const requests = messages.filter(message => message.role === 'user' && message.queuedForRevision).map(message => message.text)
+    if (!requests.length) { json(response, 400, { error: 'Chưa có yêu cầu sửa trong chat.' }); return }
+    state.busy = true
+    try {
+      const id = randomUUID()
+      const directory = join(jobsRoot, id)
+      mkdirSync(join(directory, 'build'), { recursive: true })
+      mkdirSync(join(directory, 'assets'), { recursive: true })
+      copyFileSync(sourceFile, join(directory, 'source.mp4'))
+      const referenceFile = join(parentDir, 'reference.mp4')
+      if (existsSync(referenceFile)) copyFileSync(referenceFile, join(directory, 'reference.mp4'))
+      for (const relative of ['build/words.whisper.json', 'build/face.json', 'assets/talk.mp4', 'assets/talk-matte.webm', 'assets/supporting.json']) {
+        const from = join(parentDir, relative)
+        if (existsSync(from)) copyFileSync(from, join(directory, relative))
+      }
+      for (const file of readdirSync(join(parentDir, 'assets')).filter(name => /^support-[1-6]\.mp4$/.test(name))) copyFileSync(join(parentDir, 'assets', file), join(directory, 'assets', file))
+      const startedAt = Date.now()
+      const notes = [parent.notes, 'Yêu cầu sửa từ chat:', ...requests].filter(Boolean).join('\n').slice(-2000)
+      const job: Job = { id, createdAt: startedAt, startedAt, stage: 'Đang sửa theo yêu cầu', progress: 1, status: 'running', cancelSupported: true, title: parent.title, style: parent.style, kind: 'full', parentId: parent.id, notes, model: selectedModel() }
+      jobs.set(id, job)
+      writeFileSync(join(directory, 'messages.json'), JSON.stringify([{ role: 'agent', text: 'Đang dựng bản sửa theo yêu cầu của bạn. Dữ liệu chép lời đã được giữ lại.', createdAt: startedAt }], null, 2), 'utf8')
+      json(response, 202, job)
+      void processJob(job, join(directory, 'source.mp4'), existsSync(join(directory, 'reference.mp4')) ? join(directory, 'reference.mp4') : undefined, notes)
+    } catch (error) { state.busy = false; json(response, 500, { error: error instanceof Error ? error.message : 'Không tạo được bản sửa.' }) }
+    return
+  }
   const fullMatch = path.match(/^\/api\/jobs\/([a-f0-9-]+)\/full$/)
   if (fullMatch && request.method === 'POST') {
     if (!safeOrigin(request)) { json(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
@@ -576,13 +737,23 @@ export async function jobsApi(request: IncomingMessage, response: ServerResponse
     } catch (error) { json(response, 400, { error: error instanceof Error ? error.message : 'Không lưu được nhận xét.' }) }
     return
   }
-  const match = path.match(/^\/api\/jobs\/([a-f0-9-]+)(?:\/(output))?$/)
+  const match = path.match(/^\/api\/jobs\/([a-f0-9-]+)(?:\/(output|source|preview))?$/)
   if (match && request.method === 'GET') {
     const job = findJob(match[1])
     if (!job) { json(response, 404, { error: 'Không tìm thấy job.' }); return }
     if (match[2] === 'output') {
       const file = join(jobsRoot, job.id, 'build', 'reel.mp4')
       if (job.status !== 'done' || !existsSync(file)) { json(response, 404, { error: 'Chưa có video.' }); return }
+      serveVideo(request, response, file); return
+    }
+    if (match[2] === 'source') {
+      const file = join(jobsRoot, job.id, 'source.mp4')
+      if (!existsSync(file)) { json(response, 404, { error: 'Chưa có video nguồn.' }); return }
+      serveVideo(request, response, file); return
+    }
+    if (match[2] === 'preview') {
+      const file = join(jobsRoot, job.id, 'build/finals/reel (preview).mp4')
+      if (!existsSync(file)) { json(response, 404, { error: 'Chưa có preview.' }); return }
       serveVideo(request, response, file); return
     }
     json(response, 200, job); return

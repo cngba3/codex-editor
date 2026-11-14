@@ -211,7 +211,7 @@ export function buildScene(b, id, t0, t1, ctx) {
     const color = (c) => /^#[0-9a-f]{6}$/i.test(String(c || "")) ? c : brand.accent;
     const items = Array.isArray(b.elements) ? b.elements.slice(0, 12) : [];
     body = `<div style="position:absolute;inset:0;background:${typeof b.bg === "string" && /^#[0-9a-f]{6}$/i.test(b.bg) ? b.bg : "#141a23"}">${items.map((item, i) => {
-      const type = ["text", "box", "circle", "line"].includes(item.type) ? item.type : "text";
+      const type = ["text", "box", "circle", "line", "icon"].includes(item.type) ? item.type : "text";
       const x = pick(item.x, 40, 1000, 120), y = pick(item.y, 160, 1700, 700), w = pick(item.w, 80, 980, 500), h = pick(item.h, 20, 600, 150);
       const at = r3(t0 + pick(item.delay, 0, Math.max(.1, t1 - t0 - .1), i * .15));
       const sel = `#${id}-el${i}`;
@@ -221,6 +221,23 @@ export function buildScene(b, id, t0, t1, ctx) {
         return `<svg viewBox="0 0 1080 1920" width="1080" height="1920" style="position:absolute;inset:0"><path id="${id}-el${i}" d="M ${x} ${y} L ${x2} ${y2}" pathLength="1" fill="none" stroke="${color(item.color)}" stroke-width="${pick(item.stroke, 3, 24, 9)}" stroke-linecap="round" stroke-dasharray="1" stroke-dashoffset="1"/></svg>`;
       }
       tl.push(`ft("${sel}", { autoAlpha: 0, y: 24, scale: .9 }, { autoAlpha: 1, y: 0, scale: 1, duration: .38, ease: "back.out(1.4)" }, ${at});`);
+      if (type === "icon") {
+        const icons = {
+          question: '<path d="M25 23a9 9 0 1 1 15 7c-5 4-8 6-8 11"/><circle cx="32" cy="51" r="2" fill="currentColor" stroke="none"/>',
+          check: '<path d="M12 33l13 13 27-29"/>',
+          document: '<path d="M18 7h22l9 9v41H18zM40 7v10h9M25 29h17M25 38h17M25 47h12"/>',
+          book: '<path d="M7 13c9-4 17-3 25 2 8-5 16-6 25-2v38c-9-4-17-3-25 2-8-5-16-6-25-2zM32 15v38"/>',
+          lightbulb: '<path d="M22 43c0-5-7-8-7-19a17 17 0 1 1 34 0c0 11-7 14-7 19M23 43h18M25 50h14M28 56h8"/>',
+          chart: '<path d="M9 52h47M14 44l12-14 10 8 14-21M43 17h7v7"/>',
+          clock: '<circle cx="32" cy="32" r="24"/><path d="M32 16v17l12 7"/>',
+          location: '<path d="M32 58s20-19 20-34a20 20 0 1 0-40 0c0 15 20 34 20 34z"/><circle cx="32" cy="24" r="7"/>',
+          money: '<rect x="8" y="16" width="48" height="32" rx="6"/><circle cx="32" cy="32" r="9"/><path d="M15 23h4M45 41h4"/>',
+          arrow: '<path d="M10 32h43M38 17l15 15-15 15"/>',
+          star: '<path d="M32 7l7 17 18 1-14 12 5 18-16-10-16 10 5-18L7 25l18-1z"/>',
+        };
+        const icon = icons[item.icon] || icons.question;
+        return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${w}px;color:${color(item.color)};filter:drop-shadow(0 10px 20px #0006)"><svg viewBox="0 0 64 64" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></div>`;
+      }
       if (type === "circle") return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${w}px;border-radius:50%;background:${color(item.color)};box-shadow:0 12px 45px #0005"></div>`;
       if (type === "box") return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;min-height:${h}px;border-radius:26px;background:${color(item.color)};padding:25px;box-sizing:border-box;color:#fff;font:800 ${pick(item.size, 46, 120, 64)}px/1.1 Montserrat,Arial,sans-serif;box-shadow:0 20px 55px #0006">${esc(String(item.text || "").slice(0, 80))}</div>`;
       return `<div id="${id}-el${i}" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;color:${color(item.color)};font:800 ${pick(item.size, 46, 130, 78)}px/1.06 Montserrat,Arial,sans-serif;text-shadow:0 5px 20px #0009;overflow-wrap:break-word">${esc(String(item.text || "").slice(0, 80))}</div>`;

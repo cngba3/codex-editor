@@ -72,6 +72,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   transform: none;
 }
 .workspace-app .primary-button:disabled { box-shadow: none; }
+.workspace-app .connection-logout {
+  border: 1px solid #dedee2;
+  border-radius: 9px;
+  background: #fff;
+  color: #3f4146;
+  font-size: 11px;
+  font-weight: 600;
+  transition: border-color .16s ease, background-color .16s ease, color .16s ease;
+}
+.workspace-app .connection-logout:hover { border-color: #e1bfc4; background: #fff7f8; color: #9b3442; }
+.workspace-app .connection-logout:disabled { opacity: .6; cursor: wait; }
 .workspace-app .secondary-button, .workspace-app .text-link, .workspace-app .open-project { font-weight: 500; }
 
 /* One brand accent for links, selected controls, and hover text. */
@@ -304,4 +315,219 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .workspace-app.studio-app .studio-main .source-section,
   .workspace-app.studio-app .studio-main .details-section { padding: 14px 12px; }
   .workspace-app.studio-app .ai-log-pane { border-top: 1px solid var(--line); }
+}
+/* Favorite controls stay independent from choosing a style. */
+.studio-style-card {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.studio-style-card > .style-card {
+  width: 100%;
+  height: 100%;
+}
+
+.style-reel-frame {
+  position: relative;
+}
+
+.studio-style-favorite,
+.style-reel-favorite {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #4b5563;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.studio-style-favorite {
+  top: 6px !important;
+  left: 6px !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+}
+
+.style-reel-favorite {
+  top: 6px !important;
+  right: 6px !important;
+  left: auto !important;
+  width: 23px !important;
+  height: 23px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+}
+
+.studio-style-favorite svg,
+.style-reel-favorite svg {
+  width: 12px;
+  height: 12px;
+}
+
+.studio-style-favorite:hover,
+.style-reel-favorite:hover,
+.studio-style-favorite.is-favorite,
+.style-reel-favorite.is-favorite {
+  color: var(--brand-accent, #0ea5e9);
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.2);
+}
+
+.studio-style-favorite:hover,
+.style-reel-favorite:hover {
+  transform: translateY(-1px);
+}
+
+.studio-style-favorite:focus-visible,
+.style-reel-favorite:focus-visible {
+  outline: 2px solid var(--brand-accent, #0ea5e9);
+  outline-offset: 2px;
+}
+
+.job-cancel-backdrop {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  animation: job-cancel-backdrop-in 140ms ease-out;
+}
+
+.job-cancel-dialog {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 4px 14px;
+  width: min(100%, 440px);
+  padding: 24px;
+  color: #182230;
+  background: #fff;
+  border: 1px solid #e4e9f0;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+  animation: job-cancel-dialog-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.job-cancel-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: #c2414e;
+  background: #fff0f1;
+  border: 1px solid #ffdde0;
+  border-radius: 13px;
+}
+
+.job-cancel-copy {
+  min-width: 0;
+}
+
+.job-cancel-eyebrow {
+  display: block;
+  margin: 1px 0 5px;
+  color: #8b6470;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.job-cancel-copy h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.job-cancel-copy p {
+  margin: 7px 0 0;
+  color: #647184;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.job-cancel-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.job-cancel-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.job-cancel-keep {
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d9e0e8;
+}
+
+.job-cancel-keep:hover {
+  background: #f7f9fc;
+  border-color: #c7d0dc;
+}
+
+.job-cancel-confirm {
+  color: #fff;
+  background: linear-gradient(135deg, #e35b68, #c83e50);
+  border: 1px solid #c83e50;
+  box-shadow: 0 2px 5px rgba(190, 48, 67, 0.18);
+}
+
+.job-cancel-confirm:hover {
+  background: linear-gradient(135deg, #d84d5c, #b93245);
+  border-color: #b93245;
+  transform: translateY(-1px);
+}
+
+.job-cancel-actions button:focus-visible {
+  outline: 2px solid #159ce8;
+  outline-offset: 2px;
+}
+
+@keyframes job-cancel-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes job-cancel-dialog-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-cancel-backdrop,
+  .job-cancel-dialog {
+    animation: none;
+  }
+}
+
+.workspace-app .history-card-actions button,
+.workspace-app .history-card-actions a {
+  font-weight: 500;
 }

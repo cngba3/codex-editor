@@ -66,6 +66,23 @@ export async function codexApi(request: IncomingMessage, response: ServerRespons
     } catch (error) { send(response, 400, { error: error instanceof Error ? error.message : 'Không lưu được model.' }) }
     return
   }
+  if (path === '/api/codex/logout' && request.method === 'POST') {
+    if (loginRunning) { send(response, 409, { error: 'Codex login is still running.' }); return }
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'YÃªu cáº§u khÃ´ng há»£p lá»‡.' }); return }
+    const auth = await status()
+    if (!auth.installed) { send(response, 404, { error: auth.detail }); return }
+    if (!auth.connected) { send(response, 200, { connected: false, detail: 'Codex hiá»‡n Ä‘Ã£ Ä‘Äƒng xuáº¥t.' }); return }
+    try {
+      await execFileAsync(codexExecutable(), ['logout'], { timeout: 10000, windowsHide: true })
+      const current = await status()
+      if (current.connected) { send(response, 502, { error: 'Codex váº«n cÃ²n Ä‘Äƒng nháº­p sau khi cháº¡y logout.' }); return }
+      send(response, 200, { connected: false, detail: 'ÄÃ£ Ä‘Äƒng xuáº¥t Codex.' })
+    } catch (error) {
+      const failure = error as Error & { stderr?: string; stdout?: string }
+      send(response, 502, { error: `${failure.stderr || failure.stdout || failure.message}`.trim() || 'KhÃ´ng Ä‘Äƒng xuáº¥t Ä‘Æ°á»£c Codex.' })
+    }
+    return
+  }
   if (path === '/api/codex/login' && request.method === 'POST') {
     if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
     const auth = await status()

@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Star } from 'lucide-react'
 import { styleDetails, type EditStyle } from './styles'
 
 const sampleText: Record<string, string> = {
@@ -31,12 +31,20 @@ const sampleText: Record<string, string> = {
   kinetic: 'bắt đầu ngay hôm nay',
 }
 
-type Props = { style: EditStyle; previewSrc: string | null; onChoose: () => void }
+type Props = { style: EditStyle; previewSrc: string | null; favorite: boolean; onChoose: () => void; onToggleFavorite: () => void }
 
-export default function StyleReelCard({ style, previewSrc, onChoose }: Props) {
+export default function StyleReelCard({ style, previewSrc, favorite, onChoose, onToggleFavorite }: Props) {
   const details = styleDetails[style.id]
   return <article className={`library-card style-reel-card reel-${style.id}`} tabIndex={0} aria-label={`${style.name}. ${style.description}`}>
     <div className="style-reel-frame">
+      <button
+        type="button"
+        className={`style-reel-favorite ${favorite ? 'is-favorite' : ''}`}
+        aria-label={favorite ? `Bỏ yêu thích ${style.name}` : `Yêu thích ${style.name}`}
+        aria-pressed={favorite}
+        title={favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
+      onClick={event => { event.stopPropagation(); onToggleFavorite() }}
+      ><Star size={16} fill={favorite ? 'currentColor' : 'none'}/></button>
       {previewSrc ? <img className="style-reel-image" src={previewSrc} alt="" loading="lazy"/> : <div className={`style-reel-fallback visual-${style.visual}`}/>}
       <div className="style-reel-sample" aria-hidden="true">{sampleText[style.id] || style.name}</div>
       <span className="style-reel-name">{style.name}</span>

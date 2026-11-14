@@ -71,31 +71,46 @@ export async function prepareNative(input: { root: string; directory: string; ff
   if (gsap) copyFileSync(gsap, join(assets, 'gsap.min.js'))
 }
 
-export async function buildNative(input: { root: string; directory: string; recipe: Recipe; codex: string; run: Runner; feedback?: string; round: number }) {
-  const { root, directory, recipe, codex, run, round, feedback = '' } = input
+export async function buildNative(input: { root: string; directory: string; recipe: Recipe; codex: string; run: Runner; feedback?: string; round: number; notes?: string; missingVisual?: string }) {
+  const { root, directory, recipe, codex, run, round, feedback = '', notes = '', missingVisual = '' } = input
   const driver = join(root, 'server/native-recipe.py')
   const api = await run('uv', [...pythonArgs, driver, 'api', recipe.id])
   const components = await run('uv', [...pythonArgs, join(root, 'ghost-editor/scripts/components.py'), 'plan', '--style', nativeRecipe(recipe.id)!.folder]).catch(() => 'No component history available for this recipe yet.')
   const build = join(directory, 'build'), output = join(build, `native-plan-${round}.json`)
   const previous = round > 0 && existsSync(join(build, `native-plan-${round - 1}.json`)) ? readFileSync(join(build, `native-plan-${round - 1}.json`), 'utf8') : ''
   const assets = readdirSync(join(directory, 'assets')).filter(name => /\.(mp4|webm|png|jpg|wav)$/.test(name))
+  const resultDirection = ['result-podcast', 'face-result'].includes(recipe.id)
+    ? `FACE RESULT DIRECTION: The speaker remains the visual anchor, but the edit must progress visually with the story. The house recipe calls for physical artifacts from the speaker's world, not the same generic sheet of text repeated with new words. For each main thought, choose a materially different object or treatment (for example a notebook page, receipt, ticket, marked photo or paper stack) only when that object makes the spoken idea clearer. Use the public scene(), polaroid(), prop() and punch() APIs when appropriate; a scene must stay under 2.5 seconds and never interrupt a sentence. On a reel longer than 30 seconds, plan a distinct opening device, at least one purposeful change of visual grammar near a real rhetorical turn, and a clean ending. Vary entrance, scale and placement without covering the face. Do not use four consecutive HTML props with the same .sheet structure, and do not treat changing the words on an otherwise identical card as a new visual beat. Do not force unrelated stock footage or invent facts. Explain in rationale why each visual belongs to the speaker's story.`
+    : ''
   const prompt = `You are directing a Vietnamese reel using the ORIGINAL Ghost Editor recipe builder. Return a declarative plan, not Python or shell commands.\n${recipePrompt(recipe)}
 API (actual source signatures; do not invent methods):\n${api}
 COMPONENT HISTORY AND OPEN SLOTS: ${components}
 CONTEXT: ${readFileSync(join(build, 'native-context.json'), 'utf8')}
 WORDS IN EDIT SECONDS: ${readFileSync(join(build, 'words.cut.json'), 'utf8')}
 AVAILABLE ASSETS: ${JSON.stringify(assets)}
+USER CORRECTIONS: ${notes.slice(-1000)}. Apply explicit spelling and terminology corrections to the displayed text while keeping the spoken meaning and timing. Do not add words the speaker did not say.
+VISUAL ASSET RULE: Use available real footage and suitable found photos where present. If this recipe calls for an image, icon, diagram, symbol or illustration and no fitting asset is available, construct a story-specific vector or code-native graphic through the recipe's public methods. Never leave a required visual beat empty or substitute an unrelated image. Do not invent a real person, product screenshot, logo or documentary photograph. Missing photo idea: ${missingVisual.slice(0, 500) || 'none'}.
 FACE GEOMETRY IN EDIT SECONDS: ${readFileSync(join(build, 'face.json'), 'utf8')}
 Build only from the supplied API and data. Do not call tools or inspect files; all required context is included. For Seoul List the provided B-roll is in clips/support-N.mp4 (clip id support-N), with the speaker in clips/face.mp4 after setup.
 options_json is a JSON object for ${nativeRecipe(recipe.id)!.builder}(project, **options). The driver supplies project. Supply dur and title when required. Strings "$duration" and "$title" resolve to the context values. Use tail=0 where the constructor accepts it. Plates are the same original shot, not independent camera angles. Keep all spoken words captioned. For language options use vi. Do not invent source tags or chart numbers.
 build_json is a JSON object of keyword arguments to the final build() call, e.g. BIG/SCRIPT/css for FaceResult or special/css/music for CleanOS; consult actual signatures. Do not disable checks. operations contains calls in execution order. target="R" calls the builder; target="kit" or target="props" can call helpers from kit.py/props.py when those files appear in the API. target="module" calls a public helper or value constructor declared in the selected recipe module (e.g. stick/arrow/Strap). Save a returned scene/path/object with result="name", then target="name" calls it; args can reference it as {"$ref":"name"}. Constants use {"$constant":"INK"}. args_json is a JSON array; kwargs_json a JSON object; result="" if unused. Use numerical edit timestamps from the words or call R.t and save its result. Never call build: the driver calls it after your operations. Private methods, js, write_page, emit, exec, eval, raw scripts and absolute paths are forbidden. Use real recipe calls and helpers, not screenshots of the example reel. All assets use assets/... paths. No new asset files can be created by this plan; use only available assets. For Whiteboard call page, module drawing helpers, draw/write timed to each thought. For Caption News call plates and cap covering ALL words, with true word onsets; emphasize one word per phrase. For FaceResult call its own captions/overlays methods. Respect face guards and budgets; don't disable checks.
 Plan an opening hook, progression, at least two distinct meaningful visual beats, and a clean finish. The rationale explains decisions, missing assets, and any source limitations.
+${resultDirection}
 PREVIOUS PLAN: ${previous}
 FIX THESE OBSERVED ERRORS WITHOUT WEAKENING CHECKS: ${feedback.slice(-16000)}
 Return the complete replacement plan.`
   const images = [join(build, 'source-sheet.jpg'), ...assets.filter(name => /\.(png|jpg)$/.test(name) && !/grain|texture|ground/.test(name)).slice(0, 2).map(name => join(directory, 'assets', name))].filter(existsSync)
   await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...images.flatMap(path => ['-i', path]), '--output-schema', join(root, 'server/native-plan-schema.json'), '-o', output, '-'], { input: prompt })
   const plan = JSON.parse(readFileSync(output, 'utf8'))
+  if (round === 0 && ['result-podcast', 'face-result'].includes(recipe.id)) {
+    const duration = Number(JSON.parse(readFileSync(join(build, 'native-context.json'), 'utf8')).duration)
+    const operations = plan.operations as { method: string; args_json: string }[]
+    const genericSheets = operations.filter(operation => operation.method === 'prop' && operation.args_json.includes("class='sheet'")).length
+    const hasVisualShift = operations.some(operation => operation.method === 'scene' || operation.method === 'polaroid')
+    if (duration > 30 && genericSheets >= 4 && !hasVisualShift) {
+      throw new Error('Kế hoạch RESULT lặp ít nhất 4 thẻ chữ cùng kiểu mà không có cảnh hoặc đạo cụ khác biệt. Hãy thay các thẻ lặp bằng vật thể gắn với câu chuyện và một nhịp chuyển hình có chủ đích; giữ mặt người nói an toàn.')
+    }
+  }
   writeFileSync(join(build, 'creative-decisions.txt'), plan.rationale, 'utf8')
   await run('uv', [...pythonArgs, driver, 'build', recipe.id, directory, output])
 }

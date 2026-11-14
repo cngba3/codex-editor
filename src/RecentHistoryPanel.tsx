@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { ArrowRight, Film, History, LoaderCircle } from "lucide-react"
 import { editStyles } from "./styles"
+import { jobStatusText } from './job-status'
 
 type VideoHistoryEntry = {
   id: string
@@ -76,9 +77,9 @@ export default function RecentHistoryPanel({ onOpen, onOpenJob, activeJob, refre
     {loading && !videos.length && !visibleJob ? <div className="recent-empty"><History size={22}/><span>Đang tải lịch sử...</span></div>
       : error && !visibleJob ? <div className="recent-empty"><History size={22}/><span>{error}</span></div>
         : visibleJob || videos.length ? <div className="recent-project-list">
-          {visibleJob && <button type="button" className="recent-project recent-project-running" onClick={() => onOpenJob(visibleJob.id)} title={visibleJob.stage} aria-label={"Mở job " + (visibleJob.title || "Video")}>
+          {visibleJob && <button type="button" className="recent-project recent-project-running" onClick={() => onOpenJob(visibleJob.id)} title={jobStatusText({ ...visibleJob, status: 'running' })} aria-label={"Mở video " + (visibleJob.title || "Video")}>
             <span className="recent-project-icon"><LoaderCircle size={15}/></span>
-            <span className="recent-project-copy"><strong>{visibleJob.title || "Video đang dựng"}</strong><small>{visibleJob.stage}</small><small>{visibleJob.progress}% - Đang chạy</small></span>
+            <span className="recent-project-copy"><strong>{visibleJob.title || "Video đang dựng"}</strong><small>{jobStatusText({ ...visibleJob, status: 'running' })}</small><small>{visibleJob.progress}% hoàn thành</small></span>
             <span className="recent-progress" aria-hidden="true"><i style={{ width: visibleJob.progress + "%" }}/></span>
           </button>}
           {videos.map(video => <button type="button" className="recent-project" key={video.id} title={video.title + " - " + (styleNames.get(video.style) || video.style)} onClick={() => onOpenJob(video.id)}>
