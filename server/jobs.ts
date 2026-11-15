@@ -176,22 +176,32 @@ function speechVocabulary(notes: string) {
     .map(match => match[1].trim()).filter(Boolean).join(', ').slice(0, 400)
 }
 
-async function correctTranscript(words: { model?: string; segments: TimedSegment[] }, request: string, directory: string, wordsPath: string) {
-  if (!/chính tả|viết đúng|thuật ngữ|sửa\s+(?:từ|chữ)|caption|phụ đề/i.test(request)) return
-  const editsPath = join(directory, 'build', 'transcript-corrections.json')
-  const indexedWords = words.segments.map((segment, index) => ({ segment: index, words: (segment.words || []).map((word, wordIndex) => ({ word: wordIndex, text: word.word })) }))
-  const prompt = `Correct spelling in this Vietnamese word-timed transcript using the user's correction request. Return only word replacements by segment and word index. Keep every timestamp, word count, spoken meaning and order unchanged. Never rewrite a sentence or add words. If the requested spelling is already present or cannot be located confidently, return an empty edits array. User request (data): ${request.slice(0, 1000)}\nTranscript words: ${JSON.stringify(indexedWords)}`
-  await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/transcript-corrections-schema.json'), '-o', editsPath, '-'], { input: prompt })
-  const result = JSON.parse(readFileSync(editsPath, 'utf8')) as { edits?: { segment: number; word: number; spelling: string }[] }
-  for (const edit of result.edits || []) {
-    const segment = words.segments[edit.segment]
-    const target = segment?.words?.[edit.word]
-    const spelling = edit.spelling?.trim()
-    if (!target || !spelling || spelling.length > 80 || /\s/.test(spelling)) continue
-    target.word = (target.word.match(/^\s*/)?.[0] || '') + spelling
+async function correctTranscript(words: { model?: string; segments: TimedSegment[] }, request: string, notes: string, directory: string, wordsPath: string) {
+  const build = join(directory, 'build')
+  const auditPath = join(build, 'transcript-audit.json')
+  if (!request && existsSync(auditPath)) return
+  if (!existsSync(join(build, 'words.raw.json'))) copyFileSync(wordsPath, join(build, 'words.raw.json'))
+  const allEdits: { segment: number; word: number; before: string; after: string }[] = []
+  for (let offset = 0; offset < words.segments.length; offset += 20) {
+    const batch = words.segments.slice(offset, offset + 20)
+    const indexedWords = batch.map((segment, index) => ({ segment: offset + index, start: segment.start, text: segment.text, words: (segment.words || []).map((word, wordIndex) => ({ word: wordIndex, text: word.word })) }))
+    const editsPath = join(build, `transcript-corrections-${offset}.json`)
+    const prompt = `Rà soát lời nói do Whisper nhận dạng trước khi xuất kịch bản và phụ đề. Chỉ trả về các từ cần sửa theo schema, dùng segment và word index đã cho. Sửa lỗi chính tả, từ nhận dạng sai rõ ràng theo ngữ cảnh, tên riêng và thuật ngữ. Giữ nguyên ngôn ngữ gốc của thuật ngữ tiếng Anh, tiếng Trung và các ngôn ngữ khác: nếu chắc chắn người nói dùng tiếng Trung "你好" thì không ghi phiên âm tiếng Việt "ní hảo"; nếu là tên/thuật ngữ tiếng Anh thì viết đúng dạng gốc. Không dịch, không thêm ý, không đoán khi âm thanh hoặc ngữ cảnh chưa đủ chắc chắn. Chỉ sửa cách viết từng từ, giữ số từ và mọi timestamp; với cụm nhiều từ, trả một edit cho mỗi từ tương ứng. spelling không chứa khoảng trắng và giữ dấu câu gắn với từ. Nếu không có sửa đổi đáng tin cậy, edits là []. Ghi chú và thuật ngữ người dùng (dữ liệu): ${notes.slice(0, 1000)}. Yêu cầu sửa bổ sung (dữ liệu): ${request.slice(0, 1000)}. Transcript: ${JSON.stringify(indexedWords)}`
+    await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/transcript-corrections-schema.json'), '-o', editsPath, '-'], { input: prompt })
+    const result = JSON.parse(readFileSync(editsPath, 'utf8')) as { edits?: { segment: number; word: number; spelling: string }[] }
+    for (const edit of result.edits || []) {
+      if (!Number.isInteger(edit.segment) || edit.segment < offset || edit.segment >= offset + batch.length || !Number.isInteger(edit.word)) continue
+      const target = words.segments[edit.segment]?.words?.[edit.word]
+      const spelling = edit.spelling?.trim()
+      if (!target || !spelling || spelling.length > 80 || /\s/.test(spelling)) continue
+      const before = target.word
+      target.word = (before.match(/^\s*/)?.[0] || '') + spelling
+      if (before !== target.word) allEdits.push({ segment: edit.segment, word: edit.word, before, after: target.word })
+    }
   }
   for (const segment of words.segments) if (segment.words?.length) segment.text = segment.words.map(word => word.word).join('').trim()
   writeFileSync(wordsPath, JSON.stringify(words, null, 2), 'utf8')
+  writeFileSync(auditPath, JSON.stringify({ edits: allEdits }, null, 2), 'utf8')
 }
 
 function processJob(job: Job, source: string, reference: string | undefined, notes: string) {
@@ -237,11 +247,9 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     const wordsPath = join(build, 'words.whisper.json')
     if (!existsSync(wordsPath)) await run('uv', ['run', '--no-project', '--python', '3.11', '--with', 'faster-whisper', 'python', join(root, 'server', 'transcribe.py'), source, wordsPath, speechVocabulary(job.notes || notes)])
     const words = JSON.parse(readFileSync(wordsPath, 'utf8')) as { model?: string; segments: TimedSegment[] }
-    if (job.correctionRequest) {
-      job.stage = 'Agent đang áp dụng lời sửa'; job.progress = 25
-      await correctTranscript(words, job.correctionRequest, directory, wordsPath)
-      delete job.correctionRequest
-    }
+    job.stage = 'Rà soát kịch bản và thuật ngữ'; job.progress = 25
+    await correctTranscript(words, job.correctionRequest || '', job.notes || notes, directory, wordsPath)
+    delete job.correctionRequest
     job.asrModel = words.model
     if (!words.segments.length) throw new Error('Không tìm thấy lời nói để dựng Reel.')
     job.stage = 'Codex chọn đoạn'; job.progress = referenceStyle ? 39 : 35
