@@ -29,6 +29,6 @@
     "Chữ nhấn của style sao chép chỉ xuất hiện ở vài ý chính, tối đa khoảng một lần mỗi 10 giây; không chồng phụ đề, không dàn nhiều hàng khó đọc và phải có khoảng nghỉ giữa các lần nhấn."
   ],
   "limitations": "Inter Tight is the closest listed match to the observed heavy geometric sans; the exact font is unknown. Playfair Display is the closest listed option for the brief italic serif in the final value bar. One-second frame samples do not establish exact cut points, motion, zoom, or transition type. The sampled study does not establish audio treatment.",
-  "rendererFingerprint": "de18f76cf46a110a",
-  "fingerprint": "8185f61bdde362b0"
+  "rendererFingerprint": "b658c9d6b9e9a7f1",
+  "fingerprint": "838db4ef8901fd65"
 }
