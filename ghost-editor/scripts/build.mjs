@@ -1134,9 +1134,11 @@ const capHtml = chest ? chest.html : cap.style === "none" || edit || tpl ? "" : 
     if (cap.highlight) tl.push(`tl.set("#cg${gi}w${wi}", { color: "${cap.highlight}" }, ${r3(w.start)}); tl.set("#cg${gi}w${wi}", { color: "#fff" }, ${r3(Math.min(w.end + 0.02, e - 0.01))});`);
   });
   const capSize = cap.style === "pill" ? 66 : cap.style === "clean" ? (cap.size ?? brand.capSize) : (cap.size ?? 56);
-  // mini: small captions at a fixed height (reference-style); they jump to the panel seam during split-screen B-roll
+  // Mini captions prefer the reference height or split-screen seam, while the face guard can move them away from the speaker.
   const inSplit = (spec._splitRuns || []).some(([a, b]) => s < b && e > a);
-  const pl = cap.style === "mini" ? { y: inSplit ? (cap.splitY ?? 985) : (cap.y ?? 1360), mode: "fixed" } : placer.place(s, e, capSize * (cap.style === "pill" ? 1.6 : 1.3));
+  const pl = cap.style === "mini"
+    ? placer.place(s, e, capSize * 1.6, inSplit ? (cap.splitY ?? 985) : (cap.y ?? 1360))
+    : placer.place(s, e, capSize * (cap.style === "pill" ? 1.6 : 1.3));
   return `<div id="cg${gi}" class="cap-group clip${pl.mode === "lower-face" && cap.style !== "pill" ? " cap-backed" : ""}" style="top:${pl.y}px${pl.scale && pl.scale < 1 ? `;transform:translateX(-50%) scale(${pl.scale});transform-origin:50% 0` : ""}" data-start="${r3(s)}" data-duration="${r3(Math.max(0.1, e - s))}" data-track-index="5">${g.map((w, wi) => `<span id="cg${gi}w${wi}" class="w">${esc(w.word)}</span>`).join(cap.style === "mini" ? " " : "")}</div>`;
 }).join("\n      ");
 

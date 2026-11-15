@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
@@ -25,13 +25,23 @@ export async function finishRecipe(input: {
       await build(round, feedback)
       job.stage = 'Kiểm tra bản dựng trước render'; job.progress = 73
       await run(process.execPath, [cli, 'lint'], { cwd: directory })
+      const html = readFileSync(join(directory, 'index.html'), 'utf8')
+      const seconds = Number(html.match(/data-composition-id=["'][^"']+["'][^>]*data-duration=["']([\d.]+)["']/)?.[1])
+      if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 65) throw new Error('Recipe tạo thời lượng không hợp lệ.')
+      for (const [index, at] of [Math.min(1.5, seconds / 4), seconds / 2, Math.max(0.05, seconds - 1)].entries()) {
+        const snapshotDir = join(directory, 'build', `preview-snapshot-${index}`)
+        mkdirSync(snapshotDir, { recursive: true })
+        job.stage = `Chụp ảnh xem trước ${index + 1}/3`; job.progress = 73 + index
+        try {
+          await run(process.execPath, [cli, 'snapshot', directory, '--at', at.toFixed(3), '-o', snapshotDir, '--describe', 'false', '--no-end'], { cwd: directory })
+          const png = readdirSync(snapshotDir).find(file => /^frame-.*\.png$/.test(file))
+          if (png) await run('ffmpeg', ['-v', 'error', '-y', '-i', join(snapshotDir, png), '-vf', 'scale=450:-2', '-q:v', '4', '-frames:v', '1', join(directory, 'build', `preview-frame-${index}.jpg`)])
+        } catch (error) { if (isJobCancelled(error)) throw error }
+      }
       const approval = join(root, 'ghost-editor/scripts/approval_sheet.py')
       await run('uv', [...pythonArgs, approval, directory, '--no-build', '--max-frames', '24'])
       const approvalHtml = join(directory, 'build/approval.html')
       await run('uv', [...pythonArgs, approval, directory, '--mark-approved'])
-      const html = readFileSync(join(directory, 'index.html'), 'utf8')
-      const seconds = Number(html.match(/data-composition-id=["'][^"']+["'][^>]*data-duration=["']([\d.]+)["']/)?.[1])
-      if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 65) throw new Error('Recipe tạo thời lượng không hợp lệ.')
       const finals = join(root, 'ghost-editor/scripts/finals.py')
       const finalsDir = join(directory, 'build/finals')
       const manifest = join(directory, 'build/finals-manifest.json')

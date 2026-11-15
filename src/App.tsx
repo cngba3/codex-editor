@@ -401,7 +401,7 @@ export default function App() {
   {renderJob?.status === 'done' && renderJob.kind !== 'full' && <button className="primary-button render-button" disabled={uploading} onClick={startFull}>Dựng bản đầy đủ <Film size={18}/></button>}
   {renderJob?.status === 'done' && raw && <button className="secondary-button" onClick={save}>{activeId ? 'Cập nhật dự án' : 'Lưu dự án'}</button>}
 </div></section>
-        </div><aside className={raw || renderJob || uploading ? 'right-rail ai-log-pane is-open' : 'right-rail ai-log-pane'}><div className="ai-log-heading"><div><WandSparkles size={15}/><span>Tiến trình AI</span></div><small>{renderJob ? jobStatusText(renderJob) : 'Sẵn sàng'}</small></div><AgentChat job={renderJob} detail={studioDetail} onBeforeStart={text => setNotes(current => [current, text].filter(Boolean).join(String.fromCharCode(10)))} onRevised={next => { setRenderJob(next); displayedJobId.current = next.id; localStorage.setItem('ai-editor-last-job', next.id) }}/></aside></div></div>}
+        </div>{(raw || renderJob) && <aside className="right-rail ai-log-pane is-open"><div className="ai-log-heading"><div><WandSparkles size={15}/><span>Tiến trình AI</span></div><small>{renderJob ? jobStatusText(renderJob) : 'Sẵn sàng'}</small></div><AgentChat job={renderJob} detail={studioDetail} onBeforeStart={text => setNotes(current => [current, text].filter(Boolean).join(String.fromCharCode(10)))} onRevised={next => { setRenderJob(next); displayedJobId.current = next.id; localStorage.setItem('ai-editor-last-job', next.id) }}/></aside>}</div></div>}
 
       {section === 'history' && <HistoryPage onOpenJob={openJobInStudio}/>}
 
