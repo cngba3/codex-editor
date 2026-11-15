@@ -32,6 +32,7 @@
     "editRules",
     "assetRules",
     "recipeChecks"
+    ,"visualMotifs"
   ],
   "properties": {
     "name": {
@@ -185,6 +186,11 @@
         "type": "string"
       },
       "description": "Observable acceptance criteria specific to this recipe; distinguish observed rules from uncertain audio or motion."
+    },
+    "visualMotifs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Up to six reusable, visibly observed motion or layout motifs with triggers; describe actual action, position and timing, not a preset name."
     }
   }
 }

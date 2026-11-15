@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "clean",
+  "name": "clean",
+  "engine": "core",
+  "source": "ghost-editor/core",
+  "rules": {
+    "editorial": "Chọn câu trọn ý, mở đầu có hook thật trong lời nói; bỏ lần nói hỏng, lặp và khoảng ngừng. Không bịa câu, số liệu, nguồn hoặc lời kêu gọi. Đồng bộ mọi điểm nhấn với timestamp từ được nói.",
+    "visual": "{\"_about\":\"Business talking head, Hormozi-restrained: bold mixed-case captions with one keyword colour, punch-in snaps, rare cards in the band, few sounds, no music.\",\"brand\":{\"accent\":\"#FFD23F\",\"accentDark\":\"#E0B400\",\"ink\":\"#111111\",\"capSize\":64,\"font\":\"Montserrat\"},\"captions\":{\"style\":\"clean\",\"group\":3,\"y\":1200},\"sfxProfile\":\"restrained\",\"music\":null,\"look\":{}}",
+    "motion": "Theo house/SYSTEM của recipe; mọi chuyển động seek-safe, nhấn đúng lời nói, không lặp hiệu ứng ở mọi câu.",
+    "sound": "Giọng là chính; SFX nhỏ theo vai trò, không đặt mỗi từ một tiếng. Nhạc nhẹ, duck dưới giọng. Không tự suy đoán âm thanh của video mẫu từ ảnh tĩnh.",
+    "assets": "Chỉ dùng ảnh/footage thực sự liên quan câu đang nói; lưu nguồn. Thiếu ảnh phù hợp thì bỏ điểm chèn, không thay bằng ảnh sai ý. Dữ liệu biểu đồ phải có trong lời nói hoặc nguồn được cung cấp. Không tái sử dụng nội dung ví dụ của recipe."
+  },
+  "checks": [
+    "Chữ tiếng Việt đầy đủ dấu, đọc được trên điện thoại",
+    "Không che khuôn mặt; giữ màu da như video nguồn",
+    "Nội dung và thời điểm chữ đúng lời nói",
+    "Không cắt hụt lời; hình và âm thanh khớp",
+    "Không có khung đen hoặc đứng hình ngoài chủ ý",
+    "Tuân thủ bố cục, nhịp và đặc trưng của recipe",
+    "Giọng rõ, SFX và nhạc không lấn giọng"
+  ],
+  "limitations": "",
+  "rendererFingerprint": "5bf511b7c5920901",
+  "fingerprint": "c0629fd480126341"
+}

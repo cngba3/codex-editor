@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "launch",
+  "name": "launch",
+  "engine": "core",
+  "source": "ghost-editor/core",
+  "rules": {
+    "editorial": "Chọn câu trọn ý, mở đầu có hook thật trong lời nói; bỏ lần nói hỏng, lặp và khoảng ngừng. Không bịa câu, số liệu, nguồn hoặc lời kêu gọi. Đồng bộ mọi điểm nhấn với timestamp từ được nói.",
+    "visual": "{\"_about\":\"Product launch: dark UI windows with typed prompts, phone frames, cursor clicks, glitch transitions, mono labels, violet accent, upbeat electronic bed.\",\"brand\":{\"accent\":\"#7C5CFF\",\"accentDark\":\"#5B3EE6\",\"ink\":\"#0E0E12\",\"capSize\":58,\"font\":\"Montserrat\",\"mono\":\"JetBrains Mono\"},\"captions\":{\"style\":\"editorial\",\"group\":3,\"y\":1180},\"scenes\":{\"default_in\":\"glitch\"},\"sfxProfile\":\"standard\",\"music\":{\"id\":\"auto\",\"db\":-20},\"look\":{\"vignette\":0.2}}",
+    "motion": "Theo house/SYSTEM của recipe; mọi chuyển động seek-safe, nhấn đúng lời nói, không lặp hiệu ứng ở mọi câu.",
+    "sound": "Giọng là chính; SFX nhỏ theo vai trò, không đặt mỗi từ một tiếng. Nhạc nhẹ, duck dưới giọng. Không tự suy đoán âm thanh của video mẫu từ ảnh tĩnh.",
+    "assets": "Chỉ dùng ảnh/footage thực sự liên quan câu đang nói; lưu nguồn. Thiếu ảnh phù hợp thì bỏ điểm chèn, không thay bằng ảnh sai ý. Dữ liệu biểu đồ phải có trong lời nói hoặc nguồn được cung cấp. Không tái sử dụng nội dung ví dụ của recipe."
+  },
+  "checks": [
+    "Chữ tiếng Việt đầy đủ dấu, đọc được trên điện thoại",
+    "Không che khuôn mặt; giữ màu da như video nguồn",
+    "Nội dung và thời điểm chữ đúng lời nói",
+    "Không cắt hụt lời; hình và âm thanh khớp",
+    "Không có khung đen hoặc đứng hình ngoài chủ ý",
+    "Tuân thủ bố cục, nhịp và đặc trưng của recipe",
+    "Giọng rõ, SFX và nhạc không lấn giọng"
+  ],
+  "limitations": "",
+  "rendererFingerprint": "801fc5636cb3f2d8",
+  "fingerprint": "97ae81d1b3bad2dd"
+}

@@ -1,0 +1,533 @@
+/* A restrained, editorial UI layer for the whole iGenCut workspace. */
+:root {
+  --ink: #151515;
+  --muted: #55565b;
+  --line: #e7e7e9;
+  --brand-tint: #eef7ff;
+  --brand-border: #cde7fb;
+  --brand-accent: #087cf4;
+  --brand-action: linear-gradient(180deg, #ffffff30 0%, #ffffff00 52%), linear-gradient(108deg, #0988d1 0%, #087cf4 56%, #0758f5 100%);
+  --brand-action-hover: linear-gradient(180deg, #ffffff40 0%, #ffffff00 52%), linear-gradient(108deg, #087bbb 0%, #076ee4 56%, #0649d8 100%);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+body, .workspace-app .main-area, .app-shell.studio-app .main-area { background: #fff; color: var(--ink); }
+button, input, textarea, select { font-family: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+
+/* Shell and navigation */
+.workspace-app .topbar.editor-menu, .app-shell.studio-app .topbar.editor-menu {
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  box-shadow: none;
+}
+.workspace-app .editor-menu-item {
+  color: #49494f;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+}
+.workspace-app .editor-menu-item svg { color: #83838a; }
+.workspace-app .editor-menu-item:hover { background: var(--brand-tint); color: var(--brand-accent); }
+.workspace-app .editor-menu-item:hover svg { color: var(--brand-accent); }
+.workspace-app .editor-menu-item.active { background: var(--brand-tint); color: var(--brand-accent); font-weight: 600; }
+.workspace-app .editor-menu-item.active svg { color: var(--brand-accent); }
+.workspace-app .codex-top-status, .workspace-app .local-badge {
+  border: 1px solid #e6e8e9;
+  background: #f8f9f9;
+  color: #4b6455;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.workspace-app .avatar { background: #f0f3f6; color: #365e7b; font-weight: 600; }
+
+/* Controls and common surfaces */
+.workspace-app .primary-button, .workspace-app .empty-state button, .workspace-app .connection-test {
+  border: 1px solid #0874d6;
+  border-radius: 9px;
+  background: var(--brand-action);
+  box-shadow: inset 0 1px 0 #ffffff55, 0 2px 6px #0758f51c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 1px #06438a45;
+  transition: border-color .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+.workspace-app .primary-button:hover, .workspace-app .empty-state button:hover, .workspace-app .connection-test:hover {
+  border-color: #065fc6;
+  background: var(--brand-action-hover);
+  box-shadow: inset 0 1px 0 #ffffff66, 0 4px 10px #0758f52b;
+  filter: brightness(1.03);
+  transform: none;
+}
+.workspace-app .primary-button:active, .workspace-app .empty-state button:active, .workspace-app .connection-test:active {
+  background: var(--brand-action-hover);
+  box-shadow: inset 0 2px 3px #053d9d40;
+  transform: none;
+}
+.workspace-app .primary-button:disabled { box-shadow: none; }
+.workspace-app .connection-logout {
+  border: 1px solid #dedee2;
+  border-radius: 9px;
+  background: #fff;
+  color: #3f4146;
+  font-size: 11px;
+  font-weight: 600;
+  transition: border-color .16s ease, background-color .16s ease, color .16s ease;
+}
+.workspace-app .connection-logout:hover { border-color: #e1bfc4; background: #fff7f8; color: #9b3442; }
+.workspace-app .connection-logout:disabled { opacity: .6; cursor: wait; }
+.workspace-app .secondary-button, .workspace-app .text-link, .workspace-app .open-project { font-weight: 500; }
+
+/* One brand accent for links, selected controls, and hover text. */
+.workspace-app .secondary-button,
+.workspace-app .text-link,
+.workspace-app .open-project,
+.workspace-app .library-body button,
+.workspace-app .history-player-head a,
+.workspace-app .history-card-body a,
+.workspace-app .history-card-body button,
+.workspace-app .connection-refresh,
+.workspace-app .history-refresh,
+.workspace-app .recipe-assets button,
+.workspace-app .reference-loaded button,
+.workspace-app .render-status a,
+.workspace-app .library-body small,
+.workspace-app .history-player-head small,
+.workspace-app .history-player-head .history-render-time,
+.workspace-app .history-job-stage span,
+.workspace-app .secondary-heading h1 span {
+  color: var(--brand-accent);
+}
+.workspace-app .secondary-button:hover,
+.workspace-app .text-link:hover,
+.workspace-app .open-project:hover,
+.workspace-app .library-body button:hover,
+.workspace-app .history-player-head a:hover,
+.workspace-app .history-card-body a:hover,
+.workspace-app .history-card-body button:hover,
+.workspace-app .connection-refresh:hover,
+.workspace-app .history-refresh:hover,
+.workspace-app .recipe-assets button:hover,
+.workspace-app .reference-loaded button:hover,
+.workspace-app .render-status a:hover,
+.workspace-app .icon-button:hover,
+.workspace-app .panel-open-all:hover {
+  color: var(--brand-accent);
+}
+.workspace-app .icon-button:hover,
+.workspace-app .panel-open-all:hover,
+.workspace-app .history-player-head a:hover,
+.workspace-app .history-card-body a:hover,
+.workspace-app .history-card-body button:hover { background: var(--brand-tint); }
+.workspace-app.studio-app .recent-project:hover .recent-project-copy strong,
+.workspace-app.studio-app .editor-library-pane .style-card:hover .style-copy strong,
+.workspace-app .project-card:hover .project-info h3,
+.workspace-app .history-card:hover .history-card-body h3,
+.workspace-app .library-card:hover .library-body h3 { color: var(--brand-accent); }
+.workspace-app .style-search:focus-within { border-color: var(--brand-accent); box-shadow: 0 0 0 3px #087cf41a; }
+.workspace-app .style-check { background: var(--brand-accent); }
+.workspace-app .render-progress i,
+.workspace-app .job-source-progress i,
+.workspace-app .recent-progress i { background: var(--brand-action); }
+.workspace-app .upload-zone span b,
+.workspace-app .reference-drop b,
+.workspace-app .reference-drop > div,
+.workspace-app .mode-switch button.selected,
+.workspace-app .editor-library-pane .mode-switch button.selected { color: var(--brand-accent); }
+.workspace-app .surface, .workspace-app .project-card, .workspace-app .library-card,
+.workspace-app .history-card, .workspace-app .history-message, .workspace-app .history-player {
+  border-color: var(--line);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 1px 3px #2021230a;
+}
+.workspace-app .project-card:hover, .workspace-app .library-card:hover, .workspace-app .history-card:hover {
+  border-color: #d5d5d9;
+  box-shadow: 0 4px 12px #2021230d;
+  transform: none;
+}
+.workspace-app:not(.studio-app) .page.secondary-page { background: #fff; color: var(--ink); }
+.workspace-app .secondary-heading h1 { color: var(--ink); font-weight: 600; letter-spacing: -.04em; }
+.workspace-app .secondary-heading p { color: var(--muted); font-size: 14px; }
+.workspace-app .project-info h3, .workspace-app .history-card-body h3 { color: var(--ink); font-size: 16px; font-weight: 600; }
+.workspace-app .project-info p, .workspace-app .history-card-body p { color: var(--muted); font-size: 12px; }
+.workspace-app .library-body p, .workspace-app .project-info small,
+.workspace-app .connection-copy p, .workspace-app .codex-model p,
+.workspace-app .codex-model small { color: var(--muted); }
+.workspace-app .codex-connection, .workspace-app .codex-model { border-color: var(--line); background: #fff; box-shadow: 0 1px 3px #2021230a; }
+.workspace-app .settings-card h2, .workspace-app .history-list-head h2 { color: var(--ink); font-weight: 600; }
+.workspace-app .status-row strong { color: var(--ink); font-size: 12px; font-weight: 600; }
+.workspace-app .status-row span { color: var(--muted); font-size: 11px; }
+
+/* Studio: white canvas with quiet one-pixel separators. */
+.workspace-app.studio-app .editor-workspace { background: #fff; }
+.workspace-app.studio-app .recent-history-panel,
+.workspace-app.studio-app .editor-library-pane,
+.workspace-app.studio-app .ai-log-pane {
+  border-color: var(--line);
+  background: #fff;
+}
+.workspace-app.studio-app .ai-log-pane {
+  position: relative;
+  top: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.workspace-app.studio-app .ai-log-heading { flex: none; }
+.workspace-app.studio-app .studio-main { background: #fff; }
+.workspace-app.studio-app .studio-main .surface {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.workspace-app.studio-app .editor-panel-heading,
+.workspace-app.studio-app .ai-log-heading { color: var(--ink); }
+.workspace-app.studio-app .editor-panel-heading > div,
+.workspace-app.studio-app .ai-log-heading > div {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.workspace-app.studio-app .editor-panel-heading svg,
+.workspace-app.studio-app .ai-log-heading svg { color: #64717d; }
+.workspace-app.studio-app .editor-panel-heading small,
+.workspace-app.studio-app .ai-log-heading small {
+  border-radius: 6px;
+  background: #f3f4f5;
+  color: #686970;
+  font-size: 10px;
+  font-weight: 500;
+}
+.workspace-app.studio-app .recent-project {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f7f7f8;
+  color: var(--ink);
+}
+.workspace-app.studio-app .recent-project:hover { border-color: #e2e3e5; background: #f2f3f4; }
+.workspace-app.studio-app .recent-project.selected,
+.workspace-app.studio-app .recent-project-running { border-color: #c9e2f6; background: #eef7fd; }
+.workspace-app.studio-app .recent-project-copy strong { font-size: 12px; font-weight: 600; }
+.workspace-app.studio-app .recent-project-copy small { color: #5d5e63; font-size: 11px; }
+.workspace-app.studio-app .recent-project-icon { background: #eaf2f7; color: #367ca9; }
+.workspace-app.studio-app .panel-open-all { border-color: var(--line); background: #fff; }
+
+.workspace-app .style-search { border-color: #dedee1; border-radius: 9px; background: #fff; }
+.workspace-app .style-search > input { color: var(--ink); font-size: 12px; }
+.workspace-app .style-search > input::placeholder { color: #93949a; }
+.workspace-app.studio-app .editor-library-pane .style-card {
+  border-color: #e6e6e8;
+  border-radius: 9px;
+  background: #fff;
+}
+.workspace-app.studio-app .editor-library-pane .style-card:hover { border-color: #b8d7ec; background: #fafcfe; }
+.workspace-app.studio-app .editor-library-pane .style-card.selected {
+  border-color: var(--brand-accent);
+  background: #f4faff;
+  box-shadow: 0 0 0 1px #087cf42b;
+}
+.workspace-app.studio-app .editor-library-pane .style-copy strong { color: var(--ink); font-size: 12px; font-weight: 600; }
+.workspace-app.studio-app .editor-library-pane .style-copy span { color: #5b5c61; font-size: 11px; }
+
+.workspace-app.studio-app .studio-main .source-section,
+.workspace-app.studio-app .studio-main .details-section { padding: 16px 18px; }
+.workspace-app.studio-app .studio-main .section-head { gap: 10px; margin-bottom: 13px; }
+.workspace-app.studio-app .studio-main .section-head h2 { color: var(--ink); font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+.workspace-app.studio-app .studio-main .section-head p { color: var(--muted); font-size: 12px; }
+.workspace-app.studio-app .studio-main .number {
+  border: 1px solid #e4e6e8;
+  border-radius: 7px;
+  background: #f5f5f6;
+  color: #4c545c;
+  font-size: 10px;
+  font-weight: 600;
+}
+.workspace-app.studio-app .studio-main .section-mark { color: #595a5f; font-size: 10px; font-weight: 500; letter-spacing: 0; }
+.workspace-app.studio-app .studio-main .upload-zone,
+.workspace-app.studio-app .studio-main .job-source-running {
+  border: 1px dashed #d9dadd;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.workspace-app.studio-app .studio-main .upload-zone:hover { border-color: #88bfdf; background: #f6fbfe; }
+.workspace-app.studio-app .studio-main .upload-zone strong,
+.workspace-app.studio-app .studio-main .job-source-running strong { color: var(--ink); font-size: 14px; font-weight: 600; }
+.workspace-app.studio-app .studio-main .upload-zone span,
+.workspace-app.studio-app .studio-main .job-source-running span { color: var(--muted); font-size: 12px; }
+.workspace-app.studio-app .studio-main .upload-zone small { color: #68696e; font-size: 11px; }
+.workspace-app.studio-app .studio-main .upload-icon { background: #edf5fa; color: #3285b8; }
+.workspace-app.studio-app .studio-main .field-grid label,
+.workspace-app.studio-app .studio-main .notes-field { color: #34353a; font-size: 12px; font-weight: 600; }
+.workspace-app.studio-app .studio-main .field-grid input,
+.workspace-app.studio-app .studio-main .select-look,
+.workspace-app.studio-app .studio-main .notes-field textarea {
+  border: 1px solid #dedee1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+.workspace-app.studio-app .studio-main .field-grid input:focus,
+.workspace-app.studio-app .studio-main .notes-field textarea:focus { border-color: #74b7dc; }
+.workspace-app.studio-app .studio-main .notes-field small { color: #626368; font-size: 11px; font-weight: 400; letter-spacing: 0; }
+
+.workspace-app.studio-app .ai-log-pane .summary-label {
+  color: #45464a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.workspace-app.studio-app .ai-log-pane .summary-row { color: var(--ink); font-size: 12px; }
+.workspace-app.studio-app .ai-log-pane .summary-row span { color: var(--muted); }
+.workspace-app.studio-app .ai-log-pane .summary-row strong { color: var(--ink); font-weight: 500; }
+.workspace-app.studio-app .ai-log-pane .render-status,
+.workspace-app.studio-app .ai-log-pane .render-empty {
+  border: 1px solid #e5e5e7;
+  border-radius: 9px;
+  background: #fafafa;
+  box-shadow: none;
+}
+.workspace-app.studio-app .ai-log-pane .render-status strong { color: var(--ink); font-size: 13px; font-weight: 600; }
+.workspace-app.studio-app .ai-log-pane .render-context,
+.workspace-app.studio-app .ai-log-pane .render-status small { color: var(--muted); font-size: 10px; }
+.workspace-app.studio-app .ai-log-pane .summary-card > .primary-button,
+.workspace-app.studio-app .ai-log-pane .summary-card > .secondary-button { font-size: 12px; font-weight: 600; }
+.workspace-app.studio-app .ai-log-pane .summary-divider { background: var(--line); }
+
+@media (max-width: 1250px) {
+  .workspace-app .editor-menu-item { font-size: 11px; }
+  .workspace-app.studio-app .studio-main .source-section,
+  .workspace-app.studio-app .studio-main .details-section { padding: 14px; }
+}
+@media (max-width: 720px) {
+  .workspace-app.studio-app .recent-project-copy strong { font-size: 11px; }
+  .workspace-app.studio-app .studio-main .source-section,
+  .workspace-app.studio-app .studio-main .details-section { padding: 14px 12px; }
+  .workspace-app.studio-app .ai-log-pane { border-top: 1px solid var(--line); }
+}
+/* Favorite controls stay independent from choosing a style. */
+.studio-style-card {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.studio-style-card > .style-card {
+  width: 100%;
+  height: 100%;
+}
+
+.style-reel-frame {
+  position: relative;
+}
+
+.studio-style-favorite,
+.style-reel-favorite {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #4b5563;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.studio-style-favorite {
+  top: 6px !important;
+  left: 6px !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+}
+
+.style-reel-favorite {
+  top: 6px !important;
+  right: 6px !important;
+  left: auto !important;
+  width: 23px !important;
+  height: 23px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+}
+
+.studio-style-favorite svg,
+.style-reel-favorite svg {
+  width: 12px;
+  height: 12px;
+}
+
+.studio-style-favorite:hover,
+.style-reel-favorite:hover,
+.studio-style-favorite.is-favorite,
+.style-reel-favorite.is-favorite {
+  color: var(--brand-accent, #0ea5e9);
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.2);
+}
+
+.studio-style-favorite:hover,
+.style-reel-favorite:hover {
+  transform: translateY(-1px);
+}
+
+.studio-style-favorite:focus-visible,
+.style-reel-favorite:focus-visible {
+  outline: 2px solid var(--brand-accent, #0ea5e9);
+  outline-offset: 2px;
+}
+
+.job-cancel-backdrop {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  animation: job-cancel-backdrop-in 140ms ease-out;
+}
+
+.job-cancel-dialog {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 4px 14px;
+  width: min(100%, 440px);
+  padding: 24px;
+  color: #182230;
+  background: #fff;
+  border: 1px solid #e4e9f0;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+  animation: job-cancel-dialog-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.job-cancel-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: #c2414e;
+  background: #fff0f1;
+  border: 1px solid #ffdde0;
+  border-radius: 13px;
+}
+
+.job-cancel-copy {
+  min-width: 0;
+}
+
+.job-cancel-eyebrow {
+  display: block;
+  margin: 1px 0 5px;
+  color: #8b6470;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.job-cancel-copy h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.job-cancel-copy p {
+  margin: 7px 0 0;
+  color: #647184;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.job-cancel-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.job-cancel-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.job-cancel-keep {
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d9e0e8;
+}
+
+.job-cancel-keep:hover {
+  background: #f7f9fc;
+  border-color: #c7d0dc;
+}
+
+.job-cancel-confirm {
+  color: #fff;
+  background: linear-gradient(135deg, #e35b68, #c83e50);
+  border: 1px solid #c83e50;
+  box-shadow: 0 2px 5px rgba(190, 48, 67, 0.18);
+}
+
+.job-cancel-confirm:hover {
+  background: linear-gradient(135deg, #d84d5c, #b93245);
+  border-color: #b93245;
+  transform: translateY(-1px);
+}
+
+.job-cancel-actions button:focus-visible {
+  outline: 2px solid #159ce8;
+  outline-offset: 2px;
+}
+
+@keyframes job-cancel-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes job-cancel-dialog-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-cancel-backdrop,
+  .job-cancel-dialog {
+    animation: none;
+  }
+}
+
+.workspace-app .history-card-actions button,
+.workspace-app .history-card-actions a {
+  font-weight: 500;
+}

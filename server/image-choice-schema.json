@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selected", "reason"],
+  "properties": {
+    "selected": { "type": "integer" },
+    "reason": { "type": "string" }
+  }
+}

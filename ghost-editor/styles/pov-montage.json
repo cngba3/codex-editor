@@ -1,0 +1,8 @@
+{
+  "_about": "First-person footage montage over the speaker's real narration, with editorial captions and short motion accents.",
+  "brand": { "accent": "#A6FF00", "accentDark": "#638E00", "ink": "#111111", "onAccent": "#111111", "capSize": 58, "font": "Montserrat" },
+  "captions": { "style": "editorial", "group": 3, "y": 1180 },
+  "sfxProfile": "restrained",
+  "music": null,
+  "look": {}
+}

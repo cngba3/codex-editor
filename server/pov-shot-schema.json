@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["shots"],
+  "properties": {
+    "shots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clip", "at", "to", "in", "reason"],
+        "properties": {
+          "clip": { "type": "integer" },
+          "at": { "type": "number" },
+          "to": { "type": "number" },
+          "in": { "type": "number" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

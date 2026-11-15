@@ -246,7 +246,10 @@ def probe(path):
             rot = int(sd["rotation"])
         if sd.get("side_data_type") == "Frame Cropping":
             crop = tuple(int(sd.get(k, 0) or 0) for k in ("crop_left", "crop_right", "crop_top", "crop_bottom"))
-    return {"w": int(s["width"]), "h": int(s["height"]), "fps": fps, "dur": float(j["format"].get("duration", 0) or 0),
+    duration = s.get("duration")
+    if duration in (None, "N/A", ""):
+        duration = j["format"].get("duration", 0) or 0
+    return {"w": int(s["width"]), "h": int(s["height"]), "fps": fps, "dur": float(duration),
             "transfer": s.get("color_transfer"), "primaries": s.get("color_primaries"), "space": s.get("color_space"),
             "pix_fmt": s.get("pix_fmt"), "codec": s.get("codec_name"), "rotation": rot, "frame_crop": crop}
 

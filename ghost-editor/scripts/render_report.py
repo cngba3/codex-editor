@@ -172,15 +172,20 @@ def run_checks(pr, video, an, info, stem, approval):
 
     # black frames
     bl = [(a, b) for a, b in an["black"]]
-    det, times = [], []
+    det, times, unexpected = [], [], []
     for a, b in bl:
         w, *_ = where(pr, a)
-        on = next((bb for x, y, bb in full if x <= a <= y), None)
-        det.append(f"{fmt_t(a)} to {fmt_t(b)} ({b - a:.2f} s): {w}" + (f", under #{on['i']} {on['label']}" if on else ""))
-        times.append(a)
-    C.append(chk("black", "Black frames", "fail" if bl else "pass", len(bl), "none >= 0.1 s", det,
+        on = next((bb for x, y, bb in full if x <= a + .05 and b <= y + .05), None)
+        bg = str((on or {}).get("raw", {}).get("bg", "")).lower()
+        deliberate = bool(on and on.get("type") == "scene" and on.get("texts") and
+                          (bg in ("black", "#000", "#000000") or re.fullmatch(r"#[0-2][0-9a-f][0-2][0-9a-f][0-2][0-9a-f]", bg)))
+        det.append(f"{fmt_t(a)} to {fmt_t(b)} ({b - a:.2f} s): {w}" + (f", under #{on['i']} {on['label']}" if on else "") + (" (intentional dark text scene)" if deliberate else ""))
+        if not deliberate:
+            unexpected.append((a, b))
+            times.append(a)
+    C.append(chk("black", "Black frames", "fail" if unexpected else "pass", len(unexpected), "none unintended >= 0.1 s", det,
                  "A black stretch means missing media or a beat outside the source: check the beat/take at that time "
-                 "(asset path in assets/, `data-media-start` past the clip end), rebuild, re-render." if bl else None, auto=True, times=times))
+                 "(asset path in assets/, `data-media-start` past the clip end), rebuild, re-render." if unexpected else None, auto=True, times=times))
 
     # frozen frames (a custom build: frozen_bare() in main, once broll_qa has said where the speaker is)
     hard, soft, det, times = [], [], [], []

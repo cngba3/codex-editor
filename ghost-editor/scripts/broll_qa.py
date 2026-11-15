@@ -646,6 +646,12 @@ def analyse(video, project=None, profile="talking-head", words=None, allow_hold=
         rkd = [kp(g) for g in FM]
 
         def faces_cover(lid, k, src_g, A, sfaces):
+            # A purpose-built full-screen graphic replaces the speaker shot.
+            # The source face is hidden by design, so it is not an overlay
+            # covering a visible face. Keep checking photographic/title frames.
+            k5 = min(N - 1, int(round(k * DTM / DT)))
+            if gfx[k5] and not spk[k5]:
+                return
             for f in sfaces:
                 c = cv2.transform(np.float32([[[f[0], f[1]], [f[0] + f[2], f[1] + f[3]]]]), A)[0]
                 bx = (c[0][0], c[0][1], c[1][0] - c[0][0], c[1][1] - c[0][1])
@@ -781,7 +787,10 @@ def analyse(video, project=None, profile="talking-head", words=None, allow_hold=
         ref_from = "the reel's footage median (no speaker)"
     looks = []
     if comp and ref_st:
-        for lid in [l["id"] for l in comp["layers"] if l["kind"] == "insert"]:
+        # Generated transitions blend adjacent frames and are not separate footage to grade.
+        for lid in [l["id"] for l in comp["layers"]
+                    if l["kind"] == "insert"
+                    and not str(l.get("rel", "")).replace("\\", "/").startswith("assets/tx/")]:
             rows = []
             for k5 in range(N):
                 li = INS[k5]
@@ -1058,8 +1067,15 @@ def analyse(video, project=None, profile="talking-head", words=None, allow_hold=
             v = vis.get(e["layer"], {})
             k0, k1 = int(round(e["t0"] / DTM)), int(round(e["t1"] / DTM))
             gone = any(kk not in v for kk in (k1 + 1, k1 + 2)) or any(kk not in v for kk in (k0 - 1, k0 - 2))
-            e["transition"] = gone
-            e["fail"] = e["n"] >= 2 or (e["max"] >= 0.5 and not gone)
+            # A scene entering over the plate can obscure the source face for
+            # two or three samples before it fully becomes a graphic. Confirm
+            # the next frame is a graphic with no visible speaker before
+            # treating that short cover as a scene transition.
+            next_ks = range(min(N - 1, int(round((e["t1"] + 0.2) / DT))),
+                            min(N, int(round((e["t1"] + 0.6) / DT)) + 1))
+            graphic_entry = e["n"] <= 3 and any(gfx[k] and not spk[k] for k in next_ks)
+            e["transition"] = gone or graphic_entry
+            e["fail"] = not graphic_entry and (e["n"] >= 2 or (e["max"] >= 0.5 and not gone))
         bad = [e for e in ev if e["fail"]]
         st = "fail" if bad else ("warn" if ev else "pass")
         C.append(chk("faces", "Nothing over a face", st, f"{len(bad)} event(s), {len(ev) - len(bad)} one-frame transition(s)", "no card, panel or blur over any face",

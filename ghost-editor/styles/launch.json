@@ -11,7 +11,8 @@
   "captions": {
     "style": "editorial",
     "group": 3,
-    "y": 1180
+    "y": 1180,
+    "background": "rgba(8,8,12,0.62)"
   },
   "scenes": {
     "default_in": "glitch"

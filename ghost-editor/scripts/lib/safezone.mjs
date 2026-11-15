@@ -86,15 +86,15 @@ export function makePlacer({ face, takes, zoom, TOTAL, platform = "instagram", i
 
   let prev = null;
   const log = [];
-  const place = (t0, t1, h) => {
+  const place = (t0, t1, h, preferredY = ideal) => {
     const sp = span(t0, t1);
     const { top, bottom, mouth, eyes, seen } = sp;
     const maxY = safeBottom - h;
     // every zone this block could use, in reading-comfort order
     const opts = {}, scaleFor = {};
-    if (!seen) opts["no-face"] = Math.min(ideal, maxY);
+    if (!seen) opts["no-face"] = Math.min(preferredY, maxY);
     else {
-      if (bottom + gap <= maxY) opts.below = Math.max(bottom + gap, Math.min(ideal, maxY));
+      if (bottom + gap <= maxY) opts.below = Math.max(bottom + gap, Math.min(preferredY, maxY));
       if (top - gap - h >= safeTop) opts.above = top - gap - h;
       // a sliver above the head: shrink the block (down to 70%) rather than sit on the beard
       else if (top - gap - safeTop >= h * 0.7) { opts["above-compact"] = safeTop; scaleFor["above-compact"] = (top - gap - safeTop) / h; }
