@@ -70,6 +70,7 @@
       "artifactName": "AI-Editor-Studio-Setup-${version}.${ext}"
     },
     "nsis": {
+      "include": "installer.nsh",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

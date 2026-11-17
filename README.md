@@ -11,7 +11,7 @@ npm install
 npm run dist:win
 ```
 
-Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.1.0.exe`. Ứng dụng desktop mở giao diện và API cục bộ trong cùng cửa sổ. Các job dựng video vẫn cần Codex CLI đã đăng nhập, Python 3.11 và `uv`; model ASR có thể tải bằng `npm run setup:model`.
+Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.1.0.exe`. Ứng dụng desktop mở giao diện và API cục bộ trong cùng cửa sổ. Bộ cài tải model ASR `small` (khoảng 450 MB), cần có mạng trong lúc cài. Các job dựng video vẫn cần Codex CLI đã đăng nhập, Python 3.11 và `uv`.
 
 ## Chạy
 
