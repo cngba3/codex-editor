@@ -66,7 +66,10 @@ function run(command: string, args: string[], options: { cwd?: string; input?: s
     if (trackedJob && state.cancelled!.has(trackedJob.id)) { reject(new JobCancelledError()); return }
     const model = activeModel.getStore()
     const codexArgs = model && /^codex(?:\.exe)?$/i.test(basename(command)) && args[0] === 'exec' ? ['exec', '--model', model, ...args.slice(1)] : args
-    const child = spawn(command, codexArgs, { cwd: options.cwd || root, env: commandEnv, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    const env = command === process.execPath && process.versions.electron
+      ? { ...commandEnv, ELECTRON_RUN_AS_NODE: '1' }
+      : commandEnv
+    const child = spawn(command, codexArgs, { cwd: options.cwd || root, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     if (trackedJob) {
       const children = state.children!.get(trackedJob.id) || new Set<ChildProcess>()
       children.add(child)
