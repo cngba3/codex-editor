@@ -77,7 +77,7 @@ export async function finishRecipe(input: {
     } catch (error) {
       if (isJobCancelled(error)) throw error
       feedback = error instanceof Error ? error.message : String(error)
-      failureSummary = feedback.split(/\r?\n/)[0].slice(0, 350)
+      failureSummary = feedback.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-4).join(' | ').slice(-700)
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }

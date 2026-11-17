@@ -2,6 +2,17 @@
 
 Ứng dụng Windows dùng [`ghost-editor/`](./ghost-editor) làm lõi dựng video và Codex CLI làm agent chọn đoạn, lập kế hoạch. Repo gốc được tải trực tiếp từ [kurbaitaev/ghost-editor](https://github.com/kurbaitaev/ghost-editor); không phụ thuộc `igen-editor`.
 
+## Build bộ cài Windows
+
+Trên Windows, cài Node.js rồi chạy:
+
+```powershell
+npm install
+npm run dist:win
+```
+
+Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.1.0.exe`. Ứng dụng desktop mở giao diện và API cục bộ trong cùng cửa sổ. Bộ cài tải model ASR `small` (khoảng 450 MB), cần có mạng trong lúc cài. Các job dựng video vẫn cần Codex CLI đã đăng nhập, Python 3.11 và `uv`.
+
 ## Chạy
 
 ### Recipe trong app (cập nhật 13/11/2026)
