@@ -39,6 +39,9 @@
     "appId": "com.igen.ai-editor-studio",
     "productName": "AI Editor Studio",
     "asar": false,
+    "electronFuses": {
+      "runAsNode": true
+    },
     "directories": {
       "output": "release"
     },
