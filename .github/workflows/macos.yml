@@ -1,0 +1,63 @@
+name: Build and verify macOS installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/build-windows-exe]
+    paths:
+      - '.github/workflows/macos.yml'
+      - 'desktop/**'
+      - 'electron-main.mjs'
+      - 'package*.json'
+      - 'scripts/**'
+      - 'server/**'
+permissions:
+  contents: read
+concurrency:
+  group: macos-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+      DO_NOT_TRACK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.16.0'
+          cache: npm
+      - name: Verify native build host
+        run: node scripts/require-platform.mjs darwin ${{ matrix.arch }}
+      - run: npm ci
+      - run: npm run test:platform
+      - run: npm run dist:mac
+      - name: First-run, ASR and MP4 smoke test of packaged app
+        run: node scripts/smoke-macos.mjs
+      - name: Installer checksums
+        run: shasum -a 256 release/*.dmg > release/SHA256SUMS-${{ matrix.arch }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Editor-Studio-mac-${{ matrix.arch }}
+          path: |
+            release/*.dmg
+            release/SHA256SUMS-*.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-test-logs-${{ matrix.arch }}
+          path: |
+            .cache/mac-smoke.log
+            .cache/mac-smoke/*.png
+            .cache/mac-smoke/setup.log

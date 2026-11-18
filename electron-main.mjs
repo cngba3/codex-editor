@@ -27,7 +27,7 @@ async function initialize() {
   try {
     const root = app.getAppPath()
     const result = await setupRuntime({ appRoot: root,
-      toolsRoot: app.isPackaged ? resolve(process.resourcesPath, 'runtime') : resolve(root, '.runtime'),
+      toolsRoot: app.isPackaged ? resolve(process.resourcesPath, 'runtime') : resolve(root, '.runtime', `${process.platform}-${process.arch}`),
       dataRoot, migrateLegacy: app.isPackaged, report, signal: setupAbort.signal,
     })
     setupAbort.signal.throwIfAborted()
@@ -106,6 +106,8 @@ if (gotLock) {
   })
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit()
+    // Closing setup must cancel child processes on macOS too. Once Studio is
+    // ready, keep the server alive so the Dock can reopen the window.
+    if (process.platform !== 'darwin' || !server) app.quit()
   })
 }

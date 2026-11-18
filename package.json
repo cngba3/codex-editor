@@ -1,7 +1,7 @@
 {
   "name": "ai-editor-studio",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "main": "electron-main.mjs",
   "scripts": {
@@ -10,9 +10,11 @@
     "preview": "vite preview --host 127.0.0.1",
     "app:dev": "npm run prepare:runtime && npm run build && electron electron-main.mjs",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",
-    "dist:win": "npm run prepare:runtime && npm run build && electron-builder --win nsis",
+    "dist:win": "node scripts/require-platform.mjs win32 x64 && npm run prepare:runtime && npm run build && electron-builder --win nsis --publish never",
     "setup:model": "node scripts/setup-model.mjs",
-    "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts"
+    "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts",
+    "dist:mac": "node scripts/require-platform.mjs darwin && npm run prepare:runtime && npm run build && electron-builder --mac dmg --publish never",
+    "test:platform": "node --test scripts/test-platform.mjs"
   },
   "dependencies": {
     "@openai/codex": "0.169.0",
@@ -65,11 +67,21 @@
       "!**/*.map",
       "!**/.cache/**",
       "!ghost-editor/docs/**",
-      "!node_modules/ffprobe-static/bin/darwin/**",
       "!node_modules/ffprobe-static/bin/linux/**",
       "!node_modules/ffprobe-static/bin/win32/ia32/**"
     ],
-    "extraResources": [{ "from": ".runtime", "to": "runtime", "filter": ["node/**/*", "uv/**/*", "vc_redist.x64.exe"] }],
+    "extraResources": [
+      {
+        "from": ".runtime/${platform}-${arch}",
+        "to": "runtime",
+        "filter": [
+          "node/**/*",
+          "uv/**/*",
+          "vc_redist.x64.exe",
+          "target.json"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {
@@ -88,6 +100,15 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.video",
+      "minimumSystemVersion": "14.0",
+      "artifactName": "AI-Editor-Studio-${version}-mac-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     }
   }
 }

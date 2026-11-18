@@ -1,25 +1,70 @@
 {
-  "revision": 1,
+  "revision": 2,
   "vcRedist": {
     "url": "https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe",
     "sha256": "9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9"
   },
   "python": "3.11.15",
   "chrome": "152.0.7977.30",
-  "downloads": [
-    {
-      "name": "node",
-      "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip",
-      "sha256": "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56",
-      "binarySha256": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
-      "executable": "node-v24.16.0-win-x64/node.exe"
+  "targets": {
+    "win32-x64": {
+      "codexPackage": "@openai/codex-win32-x64",
+      "browserPlatform": "win64",
+      "requirements": "requirements.txt",
+      "downloads": [
+        {
+          "name": "node",
+          "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip",
+          "sha256": "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56",
+          "binarySha256": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+          "executable": "node-v24.16.0-win-x64/node.exe"
+        },
+        {
+          "name": "uv",
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-pc-windows-msvc.zip",
+          "sha256": "edd61f7f5728a56cc62455386661860bdfc7bab65872f39b0c25bdcc1d8e1beb",
+          "binarySha256": "7e6349bc24cfc7249f892c41298e4371826a19008c3cbcfe13eacd08ac398470",
+          "executable": "uv.exe"
+        }
+      ]
     },
-    {
-      "name": "uv",
-      "url": "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-pc-windows-msvc.zip",
-      "sha256": "edd61f7f5728a56cc62455386661860bdfc7bab65872f39b0c25bdcc1d8e1beb",
-      "binarySha256": "7e6349bc24cfc7249f892c41298e4371826a19008c3cbcfe13eacd08ac398470",
-      "executable": "uv.exe"
+    "darwin-arm64": {
+      "codexPackage": "@openai/codex-darwin-arm64",
+      "browserPlatform": "mac_arm",
+      "requirements": "requirements-darwin-arm64.txt",
+      "downloads": [
+        {
+          "name": "node",
+          "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz",
+          "sha256": "39189dab4eeb15706c424af0ac08a3044c9e48f7db12a7d77f6b7aafc7dd5df6",
+          "executable": "node-v24.16.0-darwin-arm64/bin/node"
+        },
+        {
+          "name": "uv",
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-aarch64-apple-darwin.tar.gz",
+          "sha256": "5aeca67f2283f75235de40d0bd9c0a5bbc5fce23b6d48b3bf9fa1b2db08382ca",
+          "executable": "uv-aarch64-apple-darwin/uv"
+        }
+      ]
+    },
+    "darwin-x64": {
+      "codexPackage": "@openai/codex-darwin-x64",
+      "browserPlatform": "mac",
+      "requirements": "requirements-darwin-x64.txt",
+      "downloads": [
+        {
+          "name": "node",
+          "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-x64.tar.gz",
+          "sha256": "298b4c7b3cb80765c8703e42b90324a4ece3b6634947b89e769c3c980ab55185",
+          "executable": "node-v24.16.0-darwin-x64/bin/node"
+        },
+        {
+          "name": "uv",
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-apple-darwin.tar.gz",
+          "sha256": "617a3211261b0fc739562f0071aa34e9739797c510208ede8e2977c30903d041",
+          "executable": "uv-x86_64-apple-darwin/uv"
+        }
+      ]
     }
-  ]
+  }
 }

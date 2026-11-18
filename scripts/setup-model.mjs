@@ -10,7 +10,7 @@ for (const file of ['config.json', 'tokenizer.json', 'vocabulary.txt', 'model.bi
   const minimum = file === 'model.bin' ? ({ tiny: 70_000_000, small: 400_000_000, medium: 1_400_000_000 })[model] : 100
   if (existsSync(target) && statSync(target).size > minimum) continue
   const url = `https://huggingface.co/Systran/faster-whisper-${model}/resolve/main/${file}`
-  const result = spawnSync('curl.exe', ['-fLsS', '--retry', '10', '--retry-all-errors', '--retry-delay', '2', '-C', '-', '-o', target, url], { stdio: 'inherit', windowsHide: true })
+  const result = spawnSync(process.platform === 'win32' ? 'curl.exe' : 'curl', ['-fLsS', '--retry', '10', '--retry-all-errors', '--retry-delay', '2', '-C', '-', '-o', target, url], { stdio: 'inherit', windowsHide: true })
   if (result.status !== 0 || !existsSync(target) || statSync(target).size < minimum) throw new Error(`Không tải được ${file}`)
   console.log(`${file}: ready`)
 }

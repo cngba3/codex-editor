@@ -3,14 +3,17 @@ import { cp, mkdir, readFile, writeFile, readdir, readlink, symlink, unlink, sta
 import { join, dirname, delimiter, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { install, computeExecutablePath, Browser, BrowserPlatform } from '@puppeteer/browsers'
+import { install, computeExecutablePath, Browser } from '@puppeteer/browsers'
 import puppeteer from 'puppeteer-core'
 import ffmpeg from 'ffmpeg-static'
 import ffprobe from 'ffprobe-static'
+import { runtimeTarget, runtimePaths } from './runtime-platform.mjs'
 
 export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy = false, report = () => {}, signal }) {
   const manifest = JSON.parse(await readFile(join(appRoot, 'desktop/runtime-manifest.json'), 'utf8'))
-  const runtime = join(dataRoot, 'runtime')
+  const target = runtimeTarget(manifest)
+  // Separate native Python environments when switching Intel/Apple Silicon builds.
+  const runtime = join(dataRoot, 'runtime', target.windows ? '' : target.key)
   const workspace = join(dataRoot, 'workspace')
   const logFile = join(dataRoot, 'setup.log')
   await mkdir(dataRoot, { recursive: true })
@@ -26,20 +29,20 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
     report({ stage, index, total: 8, logFile })
     log(label)
   }
-  const node = join(toolsRoot, 'node', manifest.downloads.find(d => d.name === 'node').executable)
-  const uv = join(toolsRoot, 'uv', 'uv.exe')
-  // The official npm platform package includes Codex's Windows helper executables.
+  const { node, uv, python, codexName } = runtimePaths(target, toolsRoot, runtime)
+  const bundledTarget = JSON.parse(await readFile(join(toolsRoot, 'target.json'), 'utf8'))
+  if (bundledTarget.key !== target.key) throw new Error(`Wrong runtime: ${bundledTarget.key}; this app needs ${target.key}.`)
+  // Use the native official package, including its helper executables.
   async function findCodex(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const file = join(directory, entry.name)
-      if (entry.isFile() && entry.name === 'codex.exe') return file
+      if (entry.isFile() && entry.name === codexName) return file
       if (entry.isDirectory()) { const found = await findCodex(file); if (found) return found }
     }
   }
-  const codex = await findCodex(join(appRoot, 'node_modules/@openai/codex-win32-x64'))
+  const codex = await findCodex(join(appRoot, 'node_modules', target.codexPackage))
   if (!codex) throw new Error('Bộ cài thiếu Codex CLI. Hãy cài lại AI Editor Studio.')
-  const python = join(runtime, 'venv', 'Scripts', 'python.exe')
-  const browserOptions = { browser: Browser.CHROME, buildId: manifest.chrome, platform: BrowserPlatform.WIN64, cacheDir: join(runtime, 'browser') }
+  const browserOptions = { browser: Browser.CHROME, buildId: manifest.chrome, platform: target.browserPlatform, cacheDir: join(runtime, 'browser') }
   const chrome = computeExecutablePath(browserOptions)
   const env = {
     ...process.env,
@@ -66,9 +69,13 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
       let tail = ''
       let timedOut = false
       const started = Date.now()
-      const child = spawn(command, args, { cwd: workspace, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      const child = spawn(command, args, { cwd: workspace, env, detached: !target.windows, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
       const stop = () => {
         if (!child.pid) return
+        if (!target.windows) {
+          try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') }
+          return
+        }
         const kill = spawn(join(process.env.SystemRoot || 'C:\\Windows', 'System32/taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
         kill.on('error', () => child.kill())
       }
@@ -98,10 +105,10 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
       filter: source => !source.split(/[\\/]/).some(part => ['.git', '__pycache__', '.cache', '.git.local-backup'].includes(part)) })
   }
   const modules = join(workspace, 'node_modules')
-  const target = join(appRoot, 'node_modules')
+  const modulesTarget = join(appRoot, 'node_modules')
   const previous = await readlink(modules).catch(() => null)
-  if (previous && resolve(previous) !== resolve(target)) await unlink(modules)
-  if (!existsSync(modules)) await symlink(target, modules, 'junction')
+  if (previous && resolve(dirname(modules), previous) !== resolve(modulesTarget)) await unlink(modules)
+  if (!existsSync(modules)) await symlink(modulesTarget, modules, target.windows ? 'junction' : 'dir')
   // Preserve jobs and downloaded ASR models from the previous desktop layout.
   if (migrateLegacy && !existsSync(join(dataRoot, 'migrated-v1'))) {
     for (const folder of ['jobs', '.cache/faster-whisper-small', '.cache/faster-whisper-medium', '.cache/faster-whisper-tiny']) {
@@ -115,19 +122,19 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
   await run(ffmpeg, ['-version'])
   await run(ffprobe.path, ['-version'])
   const system = join(process.env.SystemRoot || 'C:\\Windows', 'System32')
-  if (['msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll'].some(file => !existsSync(join(system, file)))) {
+  if (target.windows && ['msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll'].some(file => !existsSync(join(system, file)))) {
     log('Cài Microsoft Visual C++ Runtime. Vui lòng chấp nhận hộp thoại của Windows nếu được yêu cầu.')
     await run(join(system, 'WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command',
       "$ErrorActionPreference='Stop'; $installer=Start-Process -FilePath $env:AE_VCREDIST -ArgumentList '/install','/quiet','/norestart' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; if ($installer.ExitCode -notin @(0,3010,1638)) { exit $installer.ExitCode }"])
   }
 
   step('Cài Python và thư viện xử lý video', 2)
-  const requirements = join(appRoot, 'desktop/requirements.txt')
+  const requirements = join(appRoot, 'desktop', target.requirements)
   const signature = createHash('sha256').update(await readFile(requirements)).update(await readFile(join(appRoot, 'desktop/setup-models.py'))).update(JSON.stringify(manifest)).digest('hex')
   const marker = join(runtime, 'ready.json')
   const previousState = await readFile(marker, 'utf8').then(value => JSON.parse(value)).catch(() => ({}))
   const imports = ['-c', 'import importlib\nfor name in ["faster_whisper", "numpy", "cv2", "PIL", "fontTools", "brotli", "rembg", "onnxruntime"]:\n print("Checking " + name, flush=True)\n importlib.import_module(name)\nprint("Python libraries OK", flush=True)']
-  const pythonSignature = createHash('sha256').update(await readFile(requirements)).update(manifest.python).digest('hex')
+  const pythonSignature = createHash('sha256').update(await readFile(requirements)).update(manifest.python).update(target.key).digest('hex')
   const pythonMarker = join(runtime, 'python-ready.txt')
   const installedSignature = await readFile(pythonMarker, 'utf8').catch(() => '')
   let pythonReady = false
@@ -139,9 +146,9 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
     } catch { repairPython = true; log('Sửa lại môi trường Python.') }
   }
   if (!pythonReady) {
-    await run(uv, ['python', 'install', manifest.python, '--no-registry', '--no-bin'])
+    await run(uv, ['python', 'install', manifest.python, '--no-bin', ...(target.windows ? ['--no-registry'] : [])])
     if (!existsSync(python)) await run(uv, ['venv', '--python', manifest.python, join(runtime, 'venv')])
-    await run(uv, ['pip', 'sync', '--python', python, '--require-hashes', ...(repairPython ? ['--reinstall'] : []), requirements])
+    await run(uv, ['pip', 'sync', '--python', python, '--require-hashes', '--only-binary', ':all:', ...(repairPython ? ['--reinstall'] : []), requirements])
     await run(python, imports, 600_000)
     await writeFile(pythonMarker, pythonSignature)
   }

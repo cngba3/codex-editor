@@ -1,0 +1,6 @@
+-r requirements.in
+# Last pinned releases with native wheels for both Intel and Apple Silicon.
+# Compile separately for each target with MACOSX_DEPLOYMENT_TARGET=14.0.
+opencv-python-headless==5.0.0.93
+onnxruntime==1.23.2
+rembg==2.0.87
