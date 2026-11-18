@@ -11,7 +11,13 @@ npm install
 npm run dist:win
 ```
 
-Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.1.0.exe`. Ứng dụng desktop mở giao diện và API cục bộ trong cùng cửa sổ. Bộ cài tải model ASR `small` (khoảng 450 MB), cần có mạng trong lúc cài. Các job dựng video vẫn cần Codex CLI đã đăng nhập, Python 3.11 và `uv`.
+Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.2.0.exe`, dành cho Windows 10/11 x64. Node.js, uv, Codex CLI (kèm helper Windows), FFmpeg/FFprobe và thư viện JavaScript được đóng gói sẵn. Không yêu cầu máy khách cài Node.js, npm, Python hoặc uv trước.
+
+Khi mở lần đầu, cửa sổ thiết lập tự động chuẩn bị Python 3.11, thư viện Python CPU, Whisper `small`, YuNet, BiRefNet portrait, Chromium, phông chữ, GSAP và thư viện âm thanh. Cần Internet và dung lượng trống vài GB. Nếu máy thiếu Microsoft Visual C++ Runtime, app chạy bộ cài chính thức đi kèm; Windows có thể yêu cầu quyền quản trị. Thiết lập hiển thị bước đang làm, chi tiết tải, nút mở log và thử lại. App chỉ mở Studio sau khi kiểm tra thành công. Người dùng vẫn cần đăng nhập tài khoản Codex trong Studio.
+
+Môi trường lưu riêng trong `%APPDATA%/ai-editor-studio/runtime`, dữ liệu job/model/media trong `%APPDATA%/ai-editor-studio/workspace`; log ở `%APPDATA%/ai-editor-studio/setup.log`. Lần sau tái sử dụng các thành phần đã cài. Dữ liệu nằm ngoài thư mục cài app để có thể ghi khi cài vào Program Files và giữ qua nâng cấp. Nếu job/model theo cấu trúc cũ còn trong thư mục cài đặt, app sao chép chúng khi mở lần đầu và giữ nguyên dữ liệu gốc.
+
+`desktop/runtime-manifest.json` cố định phiên bản và checksum của công cụ tải khi build. `desktop/requirements.txt` khóa toàn bộ thư viện Python cùng hash; cập nhật bằng `.runtime/uv/uv.exe pip compile desktop/requirements.in --python-version 3.11 --python-platform windows --generate-hashes --output-file desktop/requirements.txt`. `npm run app:dev` dùng cùng luồng thiết lập desktop. Các lệnh `npm run dev` và `npm run preview` vẫn dùng môi trường của lập trình viên.
 
 ## Chạy
 

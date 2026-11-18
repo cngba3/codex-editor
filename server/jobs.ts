@@ -19,6 +19,7 @@ import { nativeRecipe, recipePrompt, saveStyleRecipe, type Recipe } from './reci
 import { buildNative, prepareNative } from './native-pipeline'
 import { finishRecipe } from './recipe-quality'
 import { selectedModel } from './codex-model'
+import { runtimeCommand } from './runtime-command'
 
 type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; correctionRequest?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
 type JobMessage = { role: 'user' | 'agent'; text: string; createdAt: number; queuedForRevision?: boolean }
@@ -41,7 +42,7 @@ state.pendingRestart ??= new Map()
 const jobs = state.jobs
 const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage'])
 const supportedStyle = (id: string) => supported.has(id) || !!nativeRecipe(id) || !!loadReferenceStyle(stylesDir, id)
-const executable = join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')
+const executable = process.env.CODEX_BIN || join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')
 const commandEnv = { ...process.env, PATH: [dirname(ffmpeg!), dirname(ffprobe.path), process.env.PATH].join(delimiter), HYPERFRAMES_FFMPEG_PATH: ffmpeg!, HYPERFRAMES_CLI_PATH: renderCli, GHOST_TASTE: join(jobsRoot, 'taste.json'), PYTHONUTF8: '1' }
 const activeModel = new AsyncLocalStorage<string>()
 const activeJob = new AsyncLocalStorage<Job>()
@@ -61,6 +62,7 @@ function safeOrigin(request: IncomingMessage) {
 }
 
 function run(command: string, args: string[], options: { cwd?: string; input?: string; job?: Job } = {}) {
+  ;({ command, args } = runtimeCommand(command, args))
   return new Promise<string>((resolveRun, reject) => {
     const trackedJob = activeJob.getStore() || options.job
     if (trackedJob && state.cancelled!.has(trackedJob.id)) { reject(new JobCancelledError()); return }

@@ -1,0 +1,25 @@
+{
+  "revision": 1,
+  "vcRedist": {
+    "url": "https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe",
+    "sha256": "9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9"
+  },
+  "python": "3.11.15",
+  "chrome": "152.0.7977.30",
+  "downloads": [
+    {
+      "name": "node",
+      "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip",
+      "sha256": "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56",
+      "binarySha256": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+      "executable": "node-v24.16.0-win-x64/node.exe"
+    },
+    {
+      "name": "uv",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-pc-windows-msvc.zip",
+      "sha256": "edd61f7f5728a56cc62455386661860bdfc7bab65872f39b0c25bdcc1d8e1beb",
+      "binarySha256": "7e6349bc24cfc7249f892c41298e4371826a19008c3cbcfe13eacd08ac398470",
+      "executable": "uv.exe"
+    }
+  ]
+}

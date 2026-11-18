@@ -28,7 +28,7 @@ def main(source: str, destination: str, vocabulary: str = "") -> None:
              (candidates[name][0] / "model.bin").exists() and
              (candidates[name][0] / "model.bin").stat().st_size > candidates[name][1]]
     if not ready:
-        raise RuntimeError("ASR model missing; run npm run setup:model -- medium (or small)")
+        raise RuntimeError("ASR model missing or incomplete. Restart AI Editor Studio to run automatic setup; for development use npm run setup:model -- small.")
     model_name, model_path = ready[0]
     model = WhisperModel(str(model_path), device="cpu", compute_type="int8")
     segments, info = model.transcribe(

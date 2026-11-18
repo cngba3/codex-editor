@@ -1,0 +1,8 @@
+# CPU-only runtime. Compile to requirements.txt with uv pip compile for Windows/Python 3.11.
+faster-whisper
+numpy
+opencv-python-headless
+Pillow
+fonttools
+brotli
+rembg[cpu]
