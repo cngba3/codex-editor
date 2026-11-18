@@ -1,12 +1,12 @@
 {
   "name": "ai-editor-studio",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.2",
   "type": "module",
   "main": "electron-main.mjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && vite build && node scripts/build-server.mjs",
+    "build": "node scripts/patch-hyperframes.mjs && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && vite build && node scripts/build-server.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "app:dev": "npm run prepare:runtime && npm run build && electron electron-main.mjs",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",
@@ -14,7 +14,10 @@
     "setup:model": "node scripts/setup-model.mjs",
     "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts",
     "dist:mac": "node scripts/require-platform.mjs darwin && npm run prepare:runtime && npm run build && electron-builder --mac dmg --publish never",
-    "test:platform": "node --test scripts/test-platform.mjs"
+    "test:platform": "node --test scripts/test-platform.mjs",
+    "test:core-beats": "tsx --no-cache --test scripts/test-core-beats.ts",
+    "postinstall": "node scripts/patch-hyperframes.mjs",
+    "test:finals": "tsx --no-cache --test scripts/test-finals-stage.ts"
   },
   "dependencies": {
     "@openai/codex": "0.169.0",
@@ -23,7 +26,7 @@
     "busboy": "^1.6.0",
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "^3.1.0",
-    "hyperframes": "^0.8.159",
+    "hyperframes": "0.8.159",
     "lucide-react": "^0.468.0",
     "puppeteer-core": "^25.17.0",
     "react": "^19.0.0",

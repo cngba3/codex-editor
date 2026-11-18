@@ -11,7 +11,7 @@ npm install
 npm run dist:win
 ```
 
-Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.3.0.exe`, dành cho Windows 10/11 x64. Node.js, uv, Codex CLI (kèm helper Windows), FFmpeg/FFprobe và thư viện JavaScript được đóng gói sẵn. Không yêu cầu máy khách cài Node.js, npm, Python hoặc uv trước.
+Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.3.2.exe`, dành cho Windows 10/11 x64. Node.js, uv, Codex CLI (kèm helper Windows), FFmpeg/FFprobe và thư viện JavaScript được đóng gói sẵn. Không yêu cầu máy khách cài Node.js, npm, Python hoặc uv trước.
 
 Khi mở lần đầu, cửa sổ thiết lập tự động chuẩn bị Python 3.11, thư viện Python CPU, Whisper `small`, YuNet, BiRefNet portrait, Chromium, phông chữ, GSAP và thư viện âm thanh. Cần Internet và dung lượng trống vài GB. Nếu máy thiếu Microsoft Visual C++ Runtime, app chạy bộ cài chính thức đi kèm; Windows có thể yêu cầu quyền quản trị. Thiết lập hiển thị bước đang làm, chi tiết tải, nút mở log và thử lại. App chỉ mở Studio sau khi kiểm tra thành công. Người dùng vẫn cần đăng nhập tài khoản Codex trong Studio.
 
@@ -28,7 +28,7 @@ npm ci
 npm run dist:mac
 ```
 
-Kết quả nằm tại `release/AI-Editor-Studio-0.3.0-mac-arm64.dmg` hoặc `release/AI-Editor-Studio-0.3.0-mac-x64.dmg`. Mở DMG, kéo **AI Editor Studio** vào **Applications**, rồi mở app từ Applications. Lần đầu cần mạng để tự chuẩn bị Python, thư viện, model và Chromium; chỉ đăng nhập Codex sau khi thiết lập xong. Máy người dùng không cần Homebrew, Node.js, Python hay uv cài sẵn.
+Kết quả nằm tại `release/AI-Editor-Studio-0.3.2-mac-arm64.dmg` hoặc `release/AI-Editor-Studio-0.3.2-mac-x64.dmg`. Mở DMG, kéo **AI Editor Studio** vào **Applications**, rồi mở app từ Applications. Lần đầu cần mạng để tự chuẩn bị Python, thư viện, model và Chromium; chỉ đăng nhập Codex sau khi thiết lập xong. Máy người dùng không cần Homebrew, Node.js, Python hay uv cài sẵn.
 
 Dữ liệu Mac nằm trong `~/Library/Application Support/ai-editor-studio/`. Python và công cụ tải về nằm ở `runtime/darwin-arm64` hoặc `runtime/darwin-x64`; workspace và model được giữ ngoài `.app`. Đóng cửa sổ thiết lập sẽ hủy việc đang chạy và có thể mở lại để tiếp tục. Sau khi Studio mở, nút Dock mở lại cửa sổ mà không cài lại môi trường.
 
@@ -99,3 +99,9 @@ Sau khi bản nháp hoàn thành, nhấn **Dựng bản đầy đủ** trong Stu
 ASR mặc định dùng faster-whisper `small` trên CPU. App ưu tiên `medium` nếu model này đã tải xong trong `.cache/`; `medium` cần khoảng 1,5 GB dung lượng và chạy chậm hơn. Cài bằng `npm run setup:model -- medium`. Muốn ép dùng model nhỏ, đặt `AI_EDITOR_ASR_MODEL=small` trước khi chạy `npm run dev`. ASR hiện dùng beam 5, giữ mọi khoảng lời nói để tránh bỏ câu, và ghi thời gian từng từ cho phụ đề. Trước khi chọn cảnh và xuất phụ đề, Codex rà soát chính tả, từ nhận dạng sai rõ ràng và cách viết thuật ngữ ngoại ngữ; các từ không chắc chắn được giữ nguyên để người dùng kiểm tra. Bản gốc và danh sách sửa được lưu trong `build/words.raw.json` và `build/transcript-audit.json` của job. Trong ô ghi chú của Studio, có thể thêm dòng `Thuật ngữ: cửa khẩu, 你好, tên sản phẩm` để giúp ASR và bước rà soát nhận tên riêng, từ chuyên môn.
 
 `ghost-editor/` được đưa trực tiếp vào repo này như mã nguồn bình thường, không phải submodule. File media đã render, model ASR và thông tin đăng nhập Codex đều nằm ngoài git.
+
+## Preview và chạy lại job cũ
+
+Bản 0.3.2 kiểm tra Chromium trên Windows bằng phiên headless/CDP thay cho `chrome.exe --version`. `npm ci` và `npm run build` áp dụng bản vá tương thích qua `scripts/patch-hyperframes.mjs`; HyperFrames được cố định ở 0.8.159 và script dừng nếu phiên bản hoặc mã nguồn kiểm tra đã đổi.
+
+Lỗi render/encode preview được trả về với mã lỗi và phần cuối log, không còn chỉ báo thiếu preview. Log nằm trong `workspace/jobs/<id>/build/finals/reel (preview).log` dưới thư mục dữ liệu ứng dụng. Khi chạy lại job, preview rỗng hoặc cũ hơn bản dựng bị từ chối; preview mới chỉ thay thế bản cũ sau khi encode thành công. Kiểm tra hồi quy: `npm run test:finals` và chạy `scripts/test-finals.py` bằng Python của môi trường app.
