@@ -4,6 +4,8 @@ import { codexApi } from './server/codex'
 import { jobsApi } from './server/jobs'
 
 export default defineConfig({
+  // Keep this app independent from PostCSS configs in parent directories.
+  css: { postcss: { plugins: [] } },
   server: { port: 5173, strictPort: true },
   preview: { port: 4173, strictPort: true },
   plugins: [

@@ -19,6 +19,9 @@ import { nativeRecipe, recipePrompt, saveStyleRecipe, type Recipe } from './reci
 import { buildNative, prepareNative } from './native-pipeline'
 import { finishRecipe } from './recipe-quality'
 import { selectedModel } from './codex-model'
+import { runtimeCommand } from './runtime-command'
+import { codexExecutable } from './codex'
+import { validateCoreBeats, coreTimingInstructions } from './core-beats'
 
 type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; correctionRequest?: string; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
 type JobMessage = { role: 'user' | 'agent'; text: string; createdAt: number; queuedForRevision?: boolean }
@@ -41,7 +44,7 @@ state.pendingRestart ??= new Map()
 const jobs = state.jobs
 const supported = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage'])
 const supportedStyle = (id: string) => supported.has(id) || !!nativeRecipe(id) || !!loadReferenceStyle(stylesDir, id)
-const executable = join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')
+const executable = codexExecutable()
 const commandEnv = { ...process.env, PATH: [dirname(ffmpeg!), dirname(ffprobe.path), process.env.PATH].join(delimiter), HYPERFRAMES_FFMPEG_PATH: ffmpeg!, HYPERFRAMES_CLI_PATH: renderCli, GHOST_TASTE: join(jobsRoot, 'taste.json'), PYTHONUTF8: '1' }
 const activeModel = new AsyncLocalStorage<string>()
 const activeJob = new AsyncLocalStorage<Job>()
@@ -61,15 +64,16 @@ function safeOrigin(request: IncomingMessage) {
 }
 
 function run(command: string, args: string[], options: { cwd?: string; input?: string; job?: Job } = {}) {
+  ;({ command, args } = runtimeCommand(command, args))
   return new Promise<string>((resolveRun, reject) => {
     const trackedJob = activeJob.getStore() || options.job
     if (trackedJob && state.cancelled!.has(trackedJob.id)) { reject(new JobCancelledError()); return }
     const model = activeModel.getStore()
     const codexArgs = model && /^codex(?:\.exe)?$/i.test(basename(command)) && args[0] === 'exec' ? ['exec', '--model', model, ...args.slice(1)] : args
-    const env = command === process.execPath && process.versions.electron
+    const childEnv = command === process.execPath && process.versions.electron
       ? { ...commandEnv, ELECTRON_RUN_AS_NODE: '1' }
       : commandEnv
-    const child = spawn(command, codexArgs, { cwd: options.cwd || root, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(command, codexArgs, { cwd: options.cwd || root, env: childEnv, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     if (trackedJob) {
       const children = state.children!.get(trackedJob.id) || new Set<ChildProcess>()
       children.add(child)
@@ -101,7 +105,10 @@ function run(command: string, args: string[], options: { cwd?: string; input?: s
 
 function stopProcessTree(child: ChildProcess) {
   if (!child.pid || child.exitCode !== null) return
-  if (process.platform !== 'win32') { child.kill('SIGTERM'); return }
+  if (process.platform !== 'win32') {
+    try { process.kill(-child.pid, 'SIGTERM') } catch { child.kill('SIGTERM') }
+    return
+  }
   const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
   killer.on('error', () => child.kill())
   killer.on('close', code => { if (code !== 0 && child.exitCode === null) child.kill() })
@@ -151,7 +158,7 @@ async function analyzeReference(reference: string, directory: string, seconds: n
   const id = `ref-${job.id.slice(0, 8)}`
   const stored = loadReferenceStyle(stylesDir, id) || await studyReference({
     reference, directory, duration: seconds, styleId: id, ffmpeg: ffmpeg!, ghost,
-    codex: existsSync(executable) ? executable : 'codex.exe', schema: referenceStyleSchema, run,
+    codex: executable, schema: referenceStyleSchema, run,
     onProgress: (stage, progress) => { job.stage = stage; job.progress = progress },
   })
   if (!loadReferenceStyle(stylesDir, id)) saveReferenceStyle(stylesDir, stored)
@@ -204,7 +211,7 @@ async function correctTranscript(words: { model?: string; segments: TimedSegment
     const indexedWords = batch.map((segment, index) => ({ segment: offset + index, start: segment.start, text: segment.text, words: (segment.words || []).map((word, wordIndex) => ({ word: wordIndex, text: word.word })) }))
     const editsPath = join(build, `transcript-corrections-${offset}.json`)
     const prompt = `Rà soát lời nói do Whisper nhận dạng trước khi xuất kịch bản và phụ đề. Chỉ trả về các từ cần sửa theo schema, dùng segment và word index đã cho. Sửa lỗi chính tả, từ nhận dạng sai rõ ràng theo ngữ cảnh, tên riêng và thuật ngữ. Giữ nguyên ngôn ngữ gốc của thuật ngữ tiếng Anh, tiếng Trung và các ngôn ngữ khác: nếu chắc chắn người nói dùng tiếng Trung "你好" thì không ghi phiên âm tiếng Việt "ní hảo"; nếu là tên/thuật ngữ tiếng Anh thì viết đúng dạng gốc. Không dịch, không thêm ý, không đoán khi âm thanh hoặc ngữ cảnh chưa đủ chắc chắn. Chỉ sửa cách viết từng từ, giữ số từ và mọi timestamp; với cụm nhiều từ, trả một edit cho mỗi từ tương ứng. spelling không chứa khoảng trắng và giữ dấu câu gắn với từ. Nếu không có sửa đổi đáng tin cậy, edits là []. Ghi chú và thuật ngữ người dùng (dữ liệu): ${notes.slice(0, 1000)}. Yêu cầu sửa bổ sung (dữ liệu): ${request.slice(0, 1000)}. Transcript: ${JSON.stringify(indexedWords)}`
-    await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/transcript-corrections-schema.json'), '-o', editsPath, '-'], { input: prompt })
+    await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/transcript-corrections-schema.json'), '-o', editsPath, '-'], { input: prompt })
     const result = JSON.parse(readFileSync(editsPath, 'utf8')) as { edits?: { segment: number; word: number; spelling: string }[] }
     for (const edit of result.edits || []) {
       if (!Number.isInteger(edit.segment) || edit.segment < offset || edit.segment >= offset + batch.length || !Number.isInteger(edit.word)) continue
@@ -277,7 +284,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
     const speech = speechCandidates(words.segments)
     writeFileSync(join(build, 'speech-candidates.json'), JSON.stringify(speech, null, 2), 'utf8')
     const cutRules = `\nUse these WORD timestamps to split takes around false starts, repeated attempts and pauses >0.7s, instead of retaining a whole segment just because its transcript is one paragraph. Candidate utterances include speech density (quality), ASR confidence (uncertainty estimate, not proof of delivery), and likely repeated takes: ${JSON.stringify(speech)}. Compare repeats for completeness, clarity and natural delivery; select the strongest version. Cut only between complete words, leave small natural breathing room, keep the best complete version of each thought. Do not invent speech or silently rewrite uncertain ASR. Timings [word,start,end]: ${JSON.stringify(wordTiming)}\nUser taste from earlier videos (preferences, not facts about this source):\n${tastePrompt(jobsRoot, job.style) || '(none)'}\nReturn JSON only; no tools.`
-    if (!existsSync(planPath)) await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, job.notes || notes, planStyle, referenceLog) : planPrompt(words, seconds, job.notes || notes, planStyle, referenceLog)) + illustrationRule + styleRule + recipePrompt(recipe) + cutRules })
+    if (!existsSync(planPath)) await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', schema, '-o', planPath, '-'], { input: (job.kind === 'full' ? fullPlanPrompt(words, seconds, job.notes || notes, planStyle, referenceLog) : planPrompt(words, seconds, job.notes || notes, planStyle, referenceLog)) + illustrationRule + styleRule + recipePrompt(recipe) + cutRules })
     const plan = JSON.parse(readFileSync(planPath, 'utf8')) as { title: string; preset: string; captionStyle: string; accent: string; takes: { a: number; b: number }[]; highlights: string[]; graphics: { kind: 'big' | 'scene'; text: string; at: number; to: number }[]; illustration: { prompt: string; at: number; to: number } }
     const takes = alignTakeEdges(plan.takes.filter(t => Number.isFinite(t.a) && Number.isFinite(t.b) && t.a >= 0 && t.b <= seconds + .1 && t.b - t.a > .3), words.segments).sort((a, b) => a.a - b.a)
     const total = takes.reduce((sum, t) => sum + t.b - t.a, 0)
@@ -323,7 +330,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
         : `You are planning typography for Amber Talk from template-1. Return JSON matching the schema. Choose meaningful hook/question, rhetorical turn and takeaway beats; leave explanatory passages as quiet subtitles. Usually 3-5 beats per 30 seconds, fewer for a shorter or quieter reel, maximum 8. Do not distribute beats evenly or fill a quota. Choose complete spoken phrases, usually 2-8 words and 0.8-3 seconds; at most 14 words over 4.5 seconds. Use progressive mode ONLY: this reference keeps the speaker visible during typography and does not call for full-screen black flashes. Prefer one dominant concept per composition with short supporting bridges; retain a compact reading order. Use exact transcript words, never paraphrase. Source start/end times must stay within ONE selected take. Avoid illustration time ${proposed}. Takes: ${JSON.stringify(takes)}. Transcript:\n${transcript}`) + typographyRules + rowRules
       let candidates: AmberCandidate[] = []
       try {
-        if (!existsSync(amberPath)) await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', amberSchema, '-o', amberPath, '-'], { input: prompt })
+        if (!existsSync(amberPath)) await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', amberSchema, '-o', amberPath, '-'], { input: prompt })
         candidates = (JSON.parse(readFileSync(amberPath, 'utf8')) as { beats: AmberCandidate[] }).beats || []
       } catch (error) {
         job.warning = [job.warning, `Typography plan: ${error instanceof Error ? error.message.slice(-180) : 'fallback'}`].filter(Boolean).join(' ')
@@ -357,7 +364,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       if (!cached && candidates.length) {
         const choicePath = join(build, 'illustration-choice.json')
         try {
-          await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...candidates.flatMap(item => ['-i', item.file]), '--output-schema', join(root, 'server/image-choice-schema.json'), '-o', choicePath, '-'], { input: `Pick one photograph for a short cutaway in a Vietnamese video. Images are attached in the same order as this list: ${JSON.stringify(candidates.map((item, index) => ({ index, title: item.title, source: item.source })))}. The spoken idea is: ${illustration.prompt}. Reject unrelated subjects, visible text/logos, AI renderings, low visual quality, and people whose identity/appearance could misrepresent the spoken subject. Choose selected=-1 if none is safe and relevant. Return JSON only.` })
+          await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...candidates.flatMap(item => ['-i', item.file]), '--output-schema', join(root, 'server/image-choice-schema.json'), '-o', choicePath, '-'], { input: `Pick one photograph for a short cutaway in a Vietnamese video. Images are attached in the same order as this list: ${JSON.stringify(candidates.map((item, index) => ({ index, title: item.title, source: item.source })))}. The spoken idea is: ${illustration.prompt}. Reject unrelated subjects, visible text/logos, AI renderings, low visual quality, and people whose identity/appearance could misrepresent the spoken subject. Choose selected=-1 if none is safe and relevant. Return JSON only.` })
           const choice = JSON.parse(readFileSync(choicePath, 'utf8')) as { selected: number; reason: string }
           stock = candidates[choice.selected] || null
         } catch (error) {
@@ -380,7 +387,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
             const componentPath = join(build, 'illustration-component.json')
             const spoken = words.segments.filter(segment => segment.start < illustration.to && segment.end > illustration.at).map(segment => segment.text).join(' ').slice(0, 500)
             if (!existsSync(componentPath)) {
-              await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/illustration-component-schema.json'), '-o', componentPath, '-'], { input: `Plan a concise vector/icon illustration for a vertical Vietnamese reel. Return JSON only. No photos, external assets, HTML, scripts, invented facts or long text. Use 2-7 elements from icon/text/box/circle/line. Available icons: question, check, document, book, lightbulb, chart, clock, location, money, arrow, star. Place them in a legible composition within 1080x1920, x=40..1000, y=160..1700. Use short labels only if they are exact spoken words; empty text otherwise. Pick colors consistent with accent ${plan.accent}. The renderer animates each element by delay, draws lines as SVG, and hides captions during this short scene. Illustration idea: ${illustration.prompt.slice(0, 500)}. Spoken words near the scene: ${spoken}. Style: ${job.style}. Each element requires type, icon, text, x, y, w, h, x2, y2, delay, color, size; use neutral defaults for unused fields.` })
+              await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/illustration-component-schema.json'), '-o', componentPath, '-'], { input: `Plan a concise vector/icon illustration for a vertical Vietnamese reel. Return JSON only. No photos, external assets, HTML, scripts, invented facts or long text. Use 2-7 elements from icon/text/box/circle/line. Available icons: question, check, document, book, lightbulb, chart, clock, location, money, arrow, star. Place them in a legible composition within 1080x1920, x=40..1000, y=160..1700. Use short labels only if they are exact spoken words; empty text otherwise. Pick colors consistent with accent ${plan.accent}. The renderer animates each element by delay, draws lines as SVG, and hides captions during this short scene. Illustration idea: ${illustration.prompt.slice(0, 500)}. Spoken words near the scene: ${spoken}. Style: ${job.style}. Each element requires type, icon, text, x, y, w, h, x2, y2, delay, color, size; use neutral defaults for unused fields.` })
             }
             const component = JSON.parse(readFileSync(componentPath, 'utf8')) as { elements?: Record<string, unknown>[] }
             const elements = (component.elements || []).filter(item => ['icon', 'text', 'box', 'circle', 'line'].includes(String(item.type)) && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)) && /^#[0-9a-f]{6}$/i.test(String(item.color)))
@@ -408,7 +415,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
         samples.push(frame)
       }
       const shotPath = join(build, 'pov-shots.json')
-      if (!existsSync(shotPath)) await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...samples.flatMap(file => ['-i', file]), '--output-schema', join(root, 'server/pov-shot-schema.json'), '-o', shotPath, '-'], { input: `Plan up to six POV video cutaways over the spoken edit. Image 1 corresponds to clip 1, etc. Each shot must match the specific spoken idea and last 1-3 seconds; prefer no shot over an unrelated one. Use original source timestamps at/to wholly inside one selected take, and in as the offset in the support clip. Do not overlap shots or title graphics. Support clip lengths: ${JSON.stringify(clipSeconds)}. Selected takes: ${JSON.stringify(takes)}. Transcript: ${JSON.stringify(words.segments)}. Return JSON only.` })
+      if (!existsSync(shotPath)) await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...samples.flatMap(file => ['-i', file]), '--output-schema', join(root, 'server/pov-shot-schema.json'), '-o', shotPath, '-'], { input: `Plan up to six POV video cutaways over the spoken edit. Image 1 corresponds to clip 1, etc. Each shot must match the specific spoken idea and last 1-3 seconds; prefer no shot over an unrelated one. Use original source timestamps at/to wholly inside one selected take, and in as the offset in the support clip. Do not overlap shots or title graphics. Support clip lengths: ${JSON.stringify(clipSeconds)}. Selected takes: ${JSON.stringify(takes)}. Transcript: ${JSON.stringify(words.segments)}. Return JSON only.` })
       const shotPlan = JSON.parse(readFileSync(shotPath, 'utf8')) as { shots?: { clip: number; at: number; to: number; in: number; reason: string }[] }
       const shots = (shotPlan.shots || []).filter(shot => Number.isInteger(shot.clip) && shot.clip >= 1 && shot.clip <= clips.length && Number.isFinite(shot.at) && Number.isFinite(shot.to) && Number.isFinite(shot.in) && shot.to - shot.at >= .8 && shot.to - shot.at <= 3 && shot.in >= 0 && shot.in + shot.to - shot.at <= clipSeconds[shot.clip - 1] && takes.some(t => shot.at >= t.a && shot.to <= t.b) && !beats.some(g => shot.at < Number(g.to) && shot.to > Number(g.at))).sort((a, b) => a.at - b.at).filter((shot, index, list) => index === 0 || shot.at >= list[index - 1].to).slice(0, 6)
       if (!shots.length) throw new Error('Không tìm được cảnh POV nào khớp lời nói và đủ chất lượng để dựng.')
@@ -418,7 +425,7 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       job.stage = 'Chuẩn bị bản cắt cho recipe'; job.progress = 67
       await prepareNative({ root, directory, ffmpeg: ffmpeg!, run, takes, words, title: plan.title || job.title, recipe })
       await finishRecipe({ root, directory, recipe, run: (command, args, options) => run(command, args, { ...options, job }), job,
-        build: (round, feedback) => buildNative({ root, directory, recipe, codex: existsSync(executable) ? executable : 'codex.exe', run, round, feedback, notes: job.notes || notes, missingVisual: missingVisualPrompt }) })
+        build: (round, feedback) => buildNative({ root, directory, recipe, codex: executable, run, round, feedback, notes: job.notes || notes, missingVisual: missingVisualPrompt }) })
       assertNotCancelled(job)
       job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
       return
@@ -444,12 +451,20 @@ async function processJobCore(job: Job, source: string, reference: string | unde
       build: async (round, feedback) => {
         {
           const repaired = join(build, `core-repair-${round}.json`)
-          await run(existsSync(executable) ? executable : 'codex.exe', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/core-repair-schema.json'), '-o', repaired, '-'], {
-            input: `Direct or repair the editable beats/captions/zoom/music of this Ghost Editor reel. Return JSON strings of their complete replacement values, retaining original-source timestamps. Do not change the source, takes, words or style. Use only these existing assets: ${readdirSync(assets).filter(name => /\.(mp4|png|jpg|webm)$/.test(name)).join(', ')}. For Launch, include a short dark UI scene with kind=ui and a mono label tied to spoken content; use a device scene only if the spoken idea supports it. Keep each full-screen graphic at most 2.3 seconds, with visible changes every 1 second, and start the reel on a complete spoken thought. Mere cards or titles do not satisfy the Launch recipe. For Stan Style, use real support-N.mp4 screen recordings as panel beats, chest captions, hook and step labels timed to spoken words. For Explainer Vector, use 2-4 scene beats with kind=vector, spoken text, optional nodes (up to 3 exact spoken concepts), and shape rise/wave/fork; choose shapes to explain this video rather than repeating a fixed example. For POV Montage, preserve relevant broll beats using the supplied support clips. For a reference-derived style, derive new beat composition from the reference motion and visual rules, not just its base preset. Follow the selected style for the density, type and timing of prominent text: ${referenceStyle ? referenceStyle.study.visualRules : styleBeatGuidance(job.style)} Keep text legible and avoid repeated wording; do not impose a universal one-per-10-seconds quota. Never place a caption and a graphic headline on screen at the same time. Create video-specific beats and effects from the actual speech, keeping each effect purposeful. When a new diagram or metaphor would explain the spoken idea, use a scene with kind=component and an elements array (up to 12 data-only primitives): each element has type text/box/circle/line, x/y/w/h in 1080x1920 coordinates, optional x2/y2 for line, text from speech, #RRGGBB color, size 46-130, and delay seconds after the scene starts. Keep text outside the face and above the caption band. This creates a distinct component for this video without scripts. No scripts, remote URLs or invented text. Read these supported beat APIs:\n${readFileSync(join(ghost, 'references/reel-json.md'), 'utf8')}\n${recipePrompt(recipe)}\nCurrent spec: ${JSON.stringify(spec)}\nTranscript: ${JSON.stringify(words)}\nObserved failures: ${feedback.slice(-16000)}\nUse null for music_json to leave the existing music unchanged.`,
+          const previousRepair = join(build, `core-repair-${round - 1}.json`)
+          const previousPlan = round > 0 && existsSync(previousRepair) ? readFileSync(previousRepair, 'utf8').slice(-24000) : ''
+          await run(executable, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, '--output-schema', join(root, 'server/core-repair-schema.json'), '-o', repaired, '-'], {
+            input: `${coreTimingInstructions(takes)}\nPrevious attempted plan (correct the failures below): ${previousPlan || "None"}\nDirect or repair the editable beats/captions/zoom/music of this Ghost Editor reel. Return JSON strings of their complete replacement values, retaining original-source timestamps. Do not change the source, takes, words or style. Use only these existing assets: ${readdirSync(assets).filter(name => /\.(mp4|png|jpg|webm)$/.test(name)).join(', ')}. For Launch, include a short dark UI scene with kind=ui and a mono label tied to spoken content; use a device scene only if the spoken idea supports it. Keep each full-screen graphic at most 2.3 seconds, with visible changes every 1 second, and start the reel on a complete spoken thought. Mere cards or titles do not satisfy the Launch recipe. For Stan Style, use real support-N.mp4 screen recordings as panel beats, chest captions, hook and step labels timed to spoken words. For Explainer Vector, use 2-4 scene beats with kind=vector, spoken text, optional nodes (up to 3 exact spoken concepts), and shape rise/wave/fork; choose shapes to explain this video rather than repeating a fixed example. For POV Montage, preserve relevant broll beats using the supplied support clips. For a reference-derived style, derive new beat composition from the reference motion and visual rules, not just its base preset. Follow the selected style for the density, type and timing of prominent text: ${referenceStyle ? referenceStyle.study.visualRules : styleBeatGuidance(job.style)} Keep text legible and avoid repeated wording; do not impose a universal one-per-10-seconds quota. Never place a caption and a graphic headline on screen at the same time. Create video-specific beats and effects from the actual speech, keeping each effect purposeful. When a new diagram or metaphor would explain the spoken idea, use a scene with kind=component and an elements array (up to 12 data-only primitives): each element has type text/box/circle/line, x/y/w/h in 1080x1920 coordinates, optional x2/y2 for line, text from speech, #RRGGBB color, size 46-130, and delay seconds after the scene starts. Keep text outside the face and above the caption band. This creates a distinct component for this video without scripts. No scripts, remote URLs or invented text. Read these supported beat APIs:\n${readFileSync(join(ghost, 'references/reel-json.md'), 'utf8')}\n${recipePrompt(recipe)}\nCurrent spec: ${JSON.stringify(spec)}\nTranscript: ${JSON.stringify(words)}\nObserved failures: ${feedback.slice(-16000)}\nUse null for music_json to leave the existing music unchanged.`,
           })
           const fix = JSON.parse(readFileSync(repaired, 'utf8'))
-          const newBeats = JSON.parse(fix.beats_json)
-          if (!Array.isArray(newBeats) || newBeats.some((beat: { at: number; to: number }) => !Number.isFinite(beat.at) || !Number.isFinite(beat.to) || beat.to <= beat.at || !takes.some(t => beat.at >= t.a && beat.to <= t.b))) throw new Error('Kế hoạch sửa có beat ngoài các đoạn được giữ.')
+          let newBeats: ReturnType<typeof validateCoreBeats>
+          try {
+            newBeats = validateCoreBeats(JSON.parse(fix.beats_json), takes)
+            writeFileSync(join(build, `core-timing-${round}.json`), JSON.stringify({ valid: true, takes, beats: newBeats }, null, 2), 'utf8')
+          } catch (error) {
+            writeFileSync(join(build, `core-timing-${round}.json`), JSON.stringify({ valid: false, takes, beats_json: fix.beats_json, error: error instanceof Error ? error.message : String(error) }, null, 2), 'utf8')
+            throw error
+          }
           if (job.style === 'pov-montage' && !newBeats.some((beat: { type: string }) => beat.type === 'broll')) throw new Error('POV Montage phải giữ ít nhất một cảnh POV thật.')
           if (job.style === 'explainer-vector' && !newBeats.some((beat: { type: string; kind?: string }) => beat.type === 'scene' && beat.kind === 'vector')) throw new Error('Explainer Vector phải có cảnh vector được vẽ theo lời nói.')
           if (job.style === 'launch' && !newBeats.some((beat: { type: string; kind?: string }) => beat.type === 'scene' && beat.kind === 'ui')) throw new Error('Launch requires a dark UI scene tied to the spoken content.')

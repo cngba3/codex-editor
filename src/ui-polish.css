@@ -264,6 +264,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .workspace-app.studio-app .studio-main .job-source-running strong { color: var(--ink); font-size: 14px; font-weight: 600; }
 .workspace-app.studio-app .studio-main .upload-zone span,
 .workspace-app.studio-app .studio-main .job-source-running span { color: var(--muted); font-size: 12px; }
+.workspace-app.studio-app .studio-main .job-source-error { margin-top: 8px; padding: 9px 10px; border: 1px solid #efcaca; border-radius: 7px; background: #fff7f7; color: #8b2828; }
+.workspace-app.studio-app .studio-main .job-source-error summary { cursor: pointer; font-size: 11px; font-weight: 600; }
+.workspace-app.studio-app .studio-main .job-source-error pre { max-height: 180px; margin: 8px 0 0; overflow: auto; color: #732727; font: 10px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .workspace-app.studio-app .studio-main .upload-zone small { color: #68696e; font-size: 11px; }
 .workspace-app.studio-app .studio-main .upload-icon { background: #edf5fa; color: #3285b8; }
 .workspace-app.studio-app .studio-main .field-grid label,

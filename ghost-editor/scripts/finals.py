@@ -97,11 +97,21 @@ def media_py():
 
 def run(cmd, log=None, cwd=None):
     if log:
-        with open(log, "a") as f:
+        with open(log, "a", encoding="utf-8") as f:
             f.write(f"\n$ {' '.join(cmd)}\n")
             f.flush()
             return subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=cwd).returncode
     return subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+
+
+def fail_stage(message, log=None):
+    """Propagate render/encode errors to the app instead of returning exit 0."""
+    tail = ""
+    if log and os.path.isfile(log):
+        with open(log, "rb") as f:
+            f.seek(max(0, os.path.getsize(log) - 4000))
+            tail = f.read().decode("utf-8", errors="replace").strip()
+    raise RuntimeError(f"{message}\nLog: {log or '(none)'}\n{tail}")
 
 
 def content_dir():
@@ -191,21 +201,33 @@ def reels_from(a):
 
 
 def hf_render(r, quality, dst, log):
+    # A successful command must produce this attempt's file, not reuse a
+    # leftover draft/master from a failed job before an app upgrade.
+    if os.path.exists(dst):
+        os.remove(dst)
     cmd = hf("render", "--quality", quality, "--workers", str(r.get("workers", 4)), "--sdr", "--quiet", "-o", dst, ".")
-    return run(cmd, log, cwd=r["project"]) == 0 and os.path.exists(dst)
+    return run(cmd, log, cwd=r["project"]) == 0 and os.path.isfile(dst) and os.path.getsize(dst) > 0
 
 
 def preview(r):
     os.makedirs(r["out"], exist_ok=True)
     out = os.path.join(r["out"], f"{r['name']} (preview).mp4")
     log = os.path.join(r["out"], f"{r['name']} (preview).log")
+    with open(log, "w", encoding="utf-8"):
+        pass
     t0, tmp = time.time(), os.path.join(r["out"], f".draft-{r['name']}.mp4")
     if not hf_render(r, "looks", tmp, log):      # not "draft": a draft master (~3 Mbit/s) made the phone copy look soft
-        return print(f"FAILED preview render {r['name']} (see {log})")
+        fail_stage(f"FAILED preview render {r['name']}", log)
+    encoded = out + ".part.mp4"
+    if os.path.exists(encoded):
+        os.remove(encoded)
     if run(["ffmpeg", "-v", "error", "-y", "-i", tmp, "-vf", "scale=720:-2:flags=lanczos",
             "-c:v", "libx264", "-threads", X264_THREADS, "-preset", "medium", "-b:v", "4500k", "-maxrate", "5M", "-bufsize", "10M",
-            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out], log):
-        return print(f"FAILED preview encode {r['name']} (see {log})")
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", encoded], log):
+        fail_stage(f"FAILED preview encode {r['name']}", log)
+    if not os.path.isfile(encoded) or not os.path.getsize(encoded):
+        fail_stage(f"FAILED preview encode {r['name']}: empty output", log)
+    os.replace(encoded, out)
     os.remove(tmp)
     ledger("preview", r, time.time() - t0, out)
     print(f"{time.strftime('%H:%M:%S')} preview {r['name']} in {time.time() - t0:.0f} s ({os.path.getsize(out) / 2**20:.1f} MB) -> {out}")
@@ -216,16 +238,21 @@ def render(r, force=False, no_music=True):
     pv = os.path.join(r["out"], f"{r['name']} (preview).mp4")
     idx = os.path.join(r["project"], "index.html")
     if not force and (not os.path.exists(pv) or os.path.getmtime(pv) < os.path.getmtime(idx)):
-        return print(f"HELD {r['name']}: no preview of the current build ({os.path.basename(pv)}); run `finals.py preview`, send it, "
-                     "and render after the user's OK (--force skips this)")
+        fail_stage(f"HELD {r['name']}: no preview of the current build ({os.path.basename(pv)}); run `finals.py preview` first")
     out, log = os.path.join(r["out"], f"{r['name']}.mp4"), os.path.join(r["out"], f"{r['name']}.log")
+    with open(log, "w", encoding="utf-8"):
+        pass
     master = os.path.join(r["out"], f".master-{r['name']}.mp4")
     t0 = time.time()
     if not hf_render(r, "delivery", master, log):
-        return print(f"FAILED render {r['name']} (see {log})")
+        fail_stage(f"FAILED render {r['name']}", log)
     vf = "fps=30,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
+    if os.path.exists(out + ".part.mp4"):
+        os.remove(out + ".part.mp4")
     if run(["ffmpeg", "-v", "error", "-y", "-i", master, "-vf", vf, *H264, out + ".part.mp4"], log):
-        return print(f"FAILED encode {r['name']} (see {log})")
+        fail_stage(f"FAILED encode {r['name']}", log)
+    if not os.path.isfile(out + ".part.mp4") or not os.path.getsize(out + ".part.mp4"):
+        fail_stage(f"FAILED encode {r['name']}: empty output", log)
     os.replace(out + ".part.mp4", out)
     os.remove(master)
     if r.get("normalize_loudness"):
@@ -237,7 +264,7 @@ def render(r, force=False, no_music=True):
                "-af", af, "-ar", "48000", "-c:a", "aac", "-b:a", "256k", "-t", f"{duration(out):.3f}",
                "-movflags", "+faststart", normalized]
         if run(cmd, log):
-            raise SystemExit(f"FAILED loudness normalization {r['name']} (see {log})")
+            fail_stage(f"FAILED loudness normalization {r['name']}", log)
         os.replace(normalized, out)
     ledger("render", r, time.time() - t0, out)
     print(f"{time.strftime('%H:%M:%S')} render {r['name']} in {time.time() - t0:.0f} s ({os.path.getsize(out) / 2**20:.0f} MB) -> {out}")

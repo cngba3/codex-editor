@@ -1,8 +1,32 @@
 {
-  "type":"object","additionalProperties":false,
-  "required":["rationale","beats_json","captions_json","zoom_json","music_json"],
-  "properties":{
-    "rationale":{"type":"string"},"beats_json":{"type":"string","description":"JSON array. Every beat needs numeric at/to in original source seconds; use only supported types."},
-    "captions_json":{"type":"string","description":"Valid JSON object of caption options."},"zoom_json":{"type":"string","description":"Valid JSON object of zoom options."},"music_json":{"type":"string","description":"The literal string null to keep current music, or a valid JSON object. Never an empty string."}
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rationale",
+    "beats_json",
+    "captions_json",
+    "zoom_json",
+    "music_json"
+  ],
+  "properties": {
+    "rationale": {
+      "type": "string"
+    },
+    "beats_json": {
+      "type": "string",
+      "description": "JSON array. Use numeric at/to in ORIGINAL source seconds, never final-edit seconds. Both endpoints must belong to kept source intervals. Overlays may span cuts in edit order; cutout/panel/behind must fit inside ONE kept interval. Use only supported types."
+    },
+    "captions_json": {
+      "type": "string",
+      "description": "Valid JSON object of caption options."
+    },
+    "zoom_json": {
+      "type": "string",
+      "description": "Valid JSON object of zoom options."
+    },
+    "music_json": {
+      "type": "string",
+      "description": "The literal string null to keep current music, or a valid JSON object. Never an empty string."
+    }
   }
 }

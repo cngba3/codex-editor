@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSyn
 import { join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
+import { runFinalsStage } from './finals-stage'
 
 type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string }
 const isJobCancelled = (error: unknown) => error instanceof Error && error.name === 'JobCancelledError'
@@ -42,19 +43,14 @@ export async function finishRecipe(input: {
       await run('uv', [...pythonArgs, approval, directory, '--no-build', '--max-frames', '24'])
       const approvalHtml = join(directory, 'build/approval.html')
       await run('uv', [...pythonArgs, approval, directory, '--mark-approved'])
-      const finals = join(root, 'ghost-editor/scripts/finals.py')
       const finalsDir = join(directory, 'build/finals')
       const manifest = join(directory, 'build/finals-manifest.json')
       writeFileSync(manifest, JSON.stringify({ reels: [{ project: directory, out: finalsDir, name: 'reel', workers: 1, recipe: recipe.id, profile: recipe.id === 'seoul-list' ? 'broll-led' : 'talking-head', no_music: false, normalize_loudness: true }] }), 'utf8')
       job.stage = `Render preview · vòng ${round + 1}/3`; job.progress = 75
-      await run('uv', [...pythonArgs, finals, 'preview', '--batch', manifest])
-      const preview = join(finalsDir, 'reel (preview).mp4')
-      if (!existsSync(preview)) throw new Error('Ghost Editor không tạo được preview.')
+      const preview = await runFinalsStage({ root, directory, manifest, stage: 'preview', run })
       job.stage = 'Preview tự động được duyệt'; job.progress = 82
       job.stage = `Render MP4 · vòng ${round + 1}/3`; job.progress = 84
-      await run('uv', [...pythonArgs, finals, 'render', '--batch', manifest, '--no-nomusic'])
-      const final = join(finalsDir, 'reel.mp4')
-      if (!existsSync(final) || statSync(final).size === 0) throw new Error('Ghost Editor không tạo được bản xuất cuối.')
+      const final = await runFinalsStage({ root, directory, manifest, stage: 'render', run })
       copyFileSync(final, output)
       renderedOutput = true
       job.stage = 'Kiểm tra hình, âm thanh và recipe'; job.progress = 94
@@ -77,7 +73,7 @@ export async function finishRecipe(input: {
     } catch (error) {
       if (isJobCancelled(error)) throw error
       feedback = error instanceof Error ? error.message : String(error)
-      failureSummary = feedback.split(/\r?\n/)[0].slice(0, 350)
+      failureSummary = feedback.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-4).join(' | ').slice(-700)
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }
