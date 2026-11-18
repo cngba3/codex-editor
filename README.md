@@ -1,6 +1,6 @@
 # AI Editor Studio
 
-Ứng dụng Windows dùng [`ghost-editor/`](./ghost-editor) làm lõi dựng video và Codex CLI làm agent chọn đoạn, lập kế hoạch. Repo gốc được tải trực tiếp từ [kurbaitaev/ghost-editor](https://github.com/kurbaitaev/ghost-editor); không phụ thuộc `igen-editor`.
+Ứng dụng Windows/macOS dùng [`ghost-editor/`](./ghost-editor) làm lõi dựng video và Codex CLI làm agent chọn đoạn, lập kế hoạch. Repo gốc được tải trực tiếp từ [kurbaitaev/ghost-editor](https://github.com/kurbaitaev/ghost-editor); không phụ thuộc `igen-editor`.
 
 ## Build bộ cài Windows
 
@@ -11,7 +11,32 @@ npm install
 npm run dist:win
 ```
 
-Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.1.0.exe`. Ứng dụng desktop mở giao diện và API cục bộ trong cùng cửa sổ. Bộ cài tải model ASR `small` (khoảng 450 MB), cần có mạng trong lúc cài. Các job dựng video vẫn cần Codex CLI đã đăng nhập, Python 3.11 và `uv`.
+Electron Builder tạo bộ cài tại `release/AI-Editor-Studio-Setup-0.3.0.exe`, dành cho Windows 10/11 x64. Node.js, uv, Codex CLI (kèm helper Windows), FFmpeg/FFprobe và thư viện JavaScript được đóng gói sẵn. Không yêu cầu máy khách cài Node.js, npm, Python hoặc uv trước.
+
+Khi mở lần đầu, cửa sổ thiết lập tự động chuẩn bị Python 3.11, thư viện Python CPU, Whisper `small`, YuNet, BiRefNet portrait, Chromium, phông chữ, GSAP và thư viện âm thanh. Cần Internet và dung lượng trống vài GB. Nếu máy thiếu Microsoft Visual C++ Runtime, app chạy bộ cài chính thức đi kèm; Windows có thể yêu cầu quyền quản trị. Thiết lập hiển thị bước đang làm, chi tiết tải, nút mở log và thử lại. App chỉ mở Studio sau khi kiểm tra thành công. Người dùng vẫn cần đăng nhập tài khoản Codex trong Studio.
+
+Môi trường lưu riêng trong `%APPDATA%/ai-editor-studio/runtime`, dữ liệu job/model/media trong `%APPDATA%/ai-editor-studio/workspace`; log ở `%APPDATA%/ai-editor-studio/setup.log`. Lần sau tái sử dụng các thành phần đã cài. Dữ liệu nằm ngoài thư mục cài app để có thể ghi khi cài vào Program Files và giữ qua nâng cấp. Nếu job/model theo cấu trúc cũ còn trong thư mục cài đặt, app sao chép chúng khi mở lần đầu và giữ nguyên dữ liệu gốc.
+
+`desktop/runtime-manifest.json` cố định phiên bản và checksum của công cụ theo từng hệ điều hành/CPU. `desktop/requirements.txt` khóa thư viện Python Windows cùng hash; cập nhật bằng `.runtime/win32-x64/uv/uv.exe pip compile desktop/requirements.in --python-version 3.11 --python-platform windows --generate-hashes --output-file desktop/requirements.txt`. `npm run app:dev` dùng cùng luồng thiết lập desktop. Các lệnh `npm run dev` và `npm run preview` vẫn dùng môi trường của lập trình viên.
+
+## Build và cài trên macOS
+
+Yêu cầu macOS 14 trở lên. Tạo riêng bản Apple Silicon (`arm64`, M1/M2/M3/M4…) và Intel (`x64`); không dùng bộ cài Windows trên Mac. Trên máy Mac có Node.js 24 cùng kiến trúc cần build:
+
+```sh
+npm ci
+npm run dist:mac
+```
+
+Kết quả nằm tại `release/AI-Editor-Studio-0.3.0-mac-arm64.dmg` hoặc `release/AI-Editor-Studio-0.3.0-mac-x64.dmg`. Mở DMG, kéo **AI Editor Studio** vào **Applications**, rồi mở app từ Applications. Lần đầu cần mạng để tự chuẩn bị Python, thư viện, model và Chromium; chỉ đăng nhập Codex sau khi thiết lập xong. Máy người dùng không cần Homebrew, Node.js, Python hay uv cài sẵn.
+
+Dữ liệu Mac nằm trong `~/Library/Application Support/ai-editor-studio/`. Python và công cụ tải về nằm ở `runtime/darwin-arm64` hoặc `runtime/darwin-x64`; workspace và model được giữ ngoài `.app`. Đóng cửa sổ thiết lập sẽ hủy việc đang chạy và có thể mở lại để tiếp tục. Sau khi Studio mở, nút Dock mở lại cửa sổ mà không cài lại môi trường.
+
+Quy trình [macos.yml](.github/workflows/macos.yml) chạy trên runner Mac native cho từng CPU, build DMG và kiểm tra chính app đóng gói: thiết lập lần đầu với PATH chỉ có công cụ hệ thống, Codex chưa đăng nhập, ASR, MP4 và mở lại bằng cache khi chặn mạng tải xuống. Tải hai bộ cài cùng checksum trong mục **Artifacts** của lần chạy thành công. Không phát hành GitHub Release tự động.
+
+Bản DMG hiện dùng chữ ký ad-hoc để thử nghiệm, chưa notarize bởi Apple; macOS có thể chặn lần mở đầu và cần xác nhận trong **System Settings → Privacy & Security → Open Anyway**. Phát hành chính thức cần Apple Developer ID và notarization. Không tắt Gatekeeper toàn hệ thống.
+
+Hai lockfile `desktop/requirements-darwin-*.txt` được tạo từ `requirements-macos.in`, với `MACOSX_DEPLOYMENT_TARGET=14.0`, `--python-platform aarch64-apple-darwin` hoặc `x86_64-apple-darwin`, `--python-version 3.11 --only-binary :all: --generate-hashes`. Chỉ cài wheel đã biên dịch để không đòi Xcode trên máy khách. `npm run test:platform` kiểm tra cấu hình các nền tảng; `node scripts/smoke-macos.mjs` chạy kiểm tra thực tế trên Mac sau khi build.
 
 ## Chạy
 

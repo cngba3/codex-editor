@@ -8,7 +8,7 @@ import { availableModels, saveSelectedModel, selectedModel } from './codex-model
 const execFileAsync = promisify(execFile)
 let loginRunning = false
 
-function codexExecutable() {
+export function codexExecutable() {
   const configured = process.env.CODEX_BIN
   if (configured) return configured
   if (process.platform === 'win32') {

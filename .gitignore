@@ -1,6 +1,8 @@
 node_modules/
 dist/
+dist-server/
 release/
+.runtime/
 *.local
 *.tsbuildinfo
 jobs/

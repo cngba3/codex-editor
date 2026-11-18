@@ -23,6 +23,7 @@ const infoCache = new Map<string, ImageInfo | undefined>()
 const pexelsCache = new Map<string, PexelsPhoto[]>()
 const chrome = [
   process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 ].find(path => path && existsSync(path))
