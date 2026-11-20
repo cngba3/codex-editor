@@ -104,6 +104,9 @@ export async function setupRuntime({ appRoot, toolsRoot, dataRoot, migrateLegacy
     if (existsSync(join(appRoot, folder))) await cp(join(appRoot, folder), join(workspace, folder), { recursive: true, force: true,
       filter: source => !source.split(/[\\/]/).some(part => ['.git', '__pycache__', '.cache', '.git.local-backup'].includes(part)) })
   }
+  const bundledPexels = join(dirname(toolsRoot), 'pexels-key')
+  const localPexels = join(workspace, '.pexels-key')
+  if (!existsSync(localPexels) && existsSync(bundledPexels) && (await readFile(bundledPexels, 'utf8')).trim()) await cp(bundledPexels, localPexels)
   const modules = join(workspace, 'node_modules')
   const modulesTarget = join(appRoot, 'node_modules')
   const previous = await readlink(modules).catch(() => null)

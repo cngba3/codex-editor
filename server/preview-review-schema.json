@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["passed", "summary", "issues"],
+  "properties": {
+    "passed": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at", "severity", "problem", "fix"],
+        "properties": {
+          "at": { "type": "number" },
+          "severity": { "type": "string", "enum": ["blocking", "minor"] },
+          "problem": { "type": "string" },
+          "fix": { "type": "string" }
+        }
+      }
+    }
+  }
+}

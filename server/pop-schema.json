@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["beats"],
+  "properties": {
+    "beats": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "at", "to", "kicker"],
+        "properties": {
+          "text": { "type": "string" },
+          "at": { "type": "number" },
+          "to": { "type": "number" },
+          "kicker": { "type": "string" }
+        }
+      }
+    }
+  }
+}

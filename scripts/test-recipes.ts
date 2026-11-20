@@ -8,6 +8,7 @@ import { saveStyleRecipe } from '../server/recipe-contract'
 import { saveReferenceStyle, type StoredReferenceStyle } from '../server/reference-style'
 import { finishRecipe } from '../server/recipe-quality'
 import { alignTakeEdges, speechCandidates } from '../server/speech-edit'
+import { buildPopBeats } from '../server/pop-layout'
 import { readTaste, recordFeedback, tastePrompt } from '../server/taste-memory'
 import { chooseMusic } from '../server/sound-direction'
 
@@ -45,6 +46,25 @@ test('native captions map source words onto frame-rounded edit cuts', () => {
   assert.throws(() => cutWords({ segments: [] }, [{ a: 0, b: 2 }]), /timestamp/)
 })
 
+test('POP keeps exact spoken words, their onsets and a verified kicker', () => {
+  const segments = [{ start: 1, end: 3.3, text: 'Vậy hôm nay thử cách mới', words: [
+    { word: 'Vậy', start: 1, end: 1.3 }, { word: 'hôm', start: 1.3, end: 1.6 },
+    { word: 'nay', start: 1.6, end: 1.85 }, { word: 'thử', start: 1.85, end: 2.2 },
+    { word: 'cách', start: 2.2, end: 2.6 }, { word: 'mới', start: 2.6, end: 3.1 },
+  ] }]
+  const beats = buildPopBeats([{ text: 'Vậy hôm nay thử cách mới', kicker: 'Vậy hôm nay', at: 1, to: 3.2 },
+    { text: 'một cách lạ', kicker: '', at: 1, to: 3.2 }], segments, [{ a: 1, b: 3.3 }])
+  assert.equal(beats.length, 1)
+  assert.equal(beats[0].kicker, 'Vậy hôm nay')
+  assert.deepEqual(beats[0].words.map(word => word.at), [1.85, 2.2, 2.6])
+  assert.equal(beats[0].text, 'thử cách mới')
+  const opening = buildPopBeats([], segments, [{ a: 1, b: 3.3 }])
+  assert.equal(opening.length, 1)
+  assert.ok(opening[0].at < 3)
+  const keyword = buildPopBeats([{ text: 'mới', kicker: '', at: 2.5, to: 3.2 }], segments, [{ a: 1, b: 3.3 }])
+  assert.ok(keyword.some(beat => beat.text === 'mới'))
+})
+
 test('reference styles persist a real recipe and revisions change its fingerprint', () => {
   const root = mkdtempSync(join(tmpdir(), 'recipe-contract-')), styles = join(root, 'styles')
   mkdirSync(styles); writeFileSync(join(styles, 'clean.json'), '{}')
@@ -60,16 +80,32 @@ test('reference styles persist a real recipe and revisions change its fingerprin
   assert.throws(() => saveStyleRecipe(root, '../secrets'), /không hợp lệ/)
 })
 
-test('Ghost Editor auto-approves sheet and preview without a visual gate', async () => {
+test('preview is reviewed before approval and final render', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recipe-auto-approve-'))
   mkdirSync(join(directory, 'build/finals'), { recursive: true })
   const recipe = saveStyleRecipe(process.cwd() + '/ghost-editor', 'amber-talk')
   const steps: string[] = []
   const runner = async (command: string, args: string[]) => {
-    if (command.includes('codex') || args.some(arg => arg.endsWith('visual-contact.py'))) throw new Error('Unexpected visual reviewer')
     if (args.some(arg => arg.endsWith('approval_sheet.py'))) {
       steps.push(args.includes('--mark-approved') ? 'approve' : 'sheet')
-      if (!args.includes('--mark-approved')) writeFileSync(join(directory, 'build/approval.html'), 'sheet')
+      if (!args.includes('--mark-approved')) {
+        writeFileSync(join(directory, 'build/approval.html'), 'sheet')
+        writeFileSync(join(directory, 'build/approval.json'), JSON.stringify({ frames: [{ t: 1, tags: ['hook'] }] }))
+      }
+    }
+    if (args.some(arg => arg.endsWith('visual-contact.py'))) {
+      steps.push('frames')
+      const sheet = join(directory, 'build/review-0-1.jpg')
+      writeFileSync(sheet, 'image')
+      return JSON.stringify([sheet])
+    }
+    if (args.some(arg => arg.endsWith('transcribe.py'))) {
+      steps.push('asr')
+      writeFileSync(args.at(-3)!, JSON.stringify({ segments: [{ start: 0, end: 1, text: 'Xin chào' }] }))
+    }
+    if (command.includes('codex')) {
+      steps.push('review')
+      writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify({ passed: true, summary: 'Đạt', issues: [] }))
     }
     const step = args.findIndex(arg => arg.endsWith('finals.py'))
     if (step >= 0) {
@@ -85,27 +121,39 @@ test('Ghost Editor auto-approves sheet and preview without a visual gate', async
     writeFileSync(join(directory, 'index.html'), '<div data-composition-id="main" data-duration="10"></div>')
   } })
   assert.equal(output, join(directory, 'build/reel.mp4'))
-  assert.deepEqual(steps, ['sheet', 'approve', 'preview', 'render'])
+  assert.deepEqual(steps, ['sheet', 'preview', 'frames', 'frames', 'asr', 'review', 'approve', 'render'])
 })
 
-test('technical QA failures retry at most three times', async () => {
+test('agent review blocks final render and sends timestamped defects into the next round', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recipe-quality-'))
   mkdirSync(join(directory, 'build/finals'), { recursive: true })
   const recipe = saveStyleRecipe(process.cwd() + '/ghost-editor', 'amber-talk')
   let builds = 0
+  let finalRenders = 0
   const runner = async (_command: string, args: string[]) => {
-    if (args.some(arg => arg.endsWith('approval_sheet.py')) && !args.includes('--mark-approved')) writeFileSync(join(directory, 'build/approval.html'), 'sheet')
+    if (args.some(arg => arg.endsWith('approval_sheet.py')) && !args.includes('--mark-approved')) {
+      writeFileSync(join(directory, 'build/approval.html'), 'sheet')
+      writeFileSync(join(directory, 'build/approval.json'), JSON.stringify({ frames: [{ t: 2, tags: ['beat'] }] }))
+    }
     const step = args.findIndex(arg => arg.endsWith('finals.py'))
     if (step >= 0 && args[step + 1] === 'preview') writeFileSync(join(directory, 'build/finals/reel (preview).mp4'), 'preview')
-    if (step >= 0 && args[step + 1] === 'render') writeFileSync(join(directory, 'build/finals/reel.mp4'), 'final')
+    if (step >= 0 && args[step + 1] === 'render') finalRenders++
+    if (args.some(arg => arg.endsWith('visual-contact.py'))) {
+      const sheet = join(directory, 'build/review.jpg')
+      writeFileSync(sheet, 'image')
+      return JSON.stringify([sheet])
+    }
+    if (args.some(arg => arg.endsWith('transcribe.py'))) writeFileSync(args.at(-3)!, JSON.stringify({ segments: [] }))
+    if (args[0] === 'exec' && args.includes('--output-schema')) writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify({ passed: false, summary: 'Chữ che mặt', issues: [{ at: 2, severity: 'blocking', problem: 'Chữ che mặt', fix: 'Dời chữ xuống dưới' }] }))
     const out = args.includes('--out') ? args[args.indexOf('--out') + 1] : ''
     if (out.includes('render-report-')) writeFileSync(out, JSON.stringify({ summary: { status: 'fail' }, checks: [{ id: 'captions', status: 'fail' }] }))
     return ''
   }
   await assert.rejects(() => finishRecipe({ root: process.cwd(), directory, recipe, run: runner, job: { stage: '', progress: 0 }, build: async (_round, feedback) => {
-    if (builds) assert.match(feedback, /REPORT:/)
+    if (builds) assert.match(feedback, /Chữ che mặt/)
     builds++
     writeFileSync(join(directory, 'index.html'), '<div data-composition-id="main" data-duration="10"></div>')
   } }), /3 vòng/)
   assert.equal(builds, 3)
+  assert.equal(finalRenders, 0)
 })

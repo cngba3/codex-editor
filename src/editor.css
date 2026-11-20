@@ -168,3 +168,13 @@
   .studio-main .video-frame video{max-height:55vh}
   .ai-log-pane{max-height:none;border-left:0}
 }
+.pexels-settings { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; }
+.pexels-settings h2 { margin: 0 0 8px; }
+.pexels-settings p { margin: 0 0 8px; }
+.pexels-settings a { color: #087be7; }
+.pexels-settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 280px; }
+.pexels-settings-controls input { min-width: 220px; padding: 11px 13px; border: 1px solid #c9d9e8; border-radius: 9px; }
+.pexels-settings-controls button { padding: 11px 16px; border: 0; border-radius: 9px; background: #087be7; color: white; cursor: pointer; }
+.pexels-settings-controls button:disabled { opacity: .5; cursor: default; }
+.pexels-settings-controls small { flex-basis: 100%; }
+@media (max-width: 760px) { .pexels-settings { flex-direction: column; align-items: stretch; } }

@@ -32,7 +32,7 @@ export function validateCoreBeats(value: unknown, takes: Take[], fps = 30): Core
     // by this take so an omitted endpoint cannot run past kept footage.
     const end = locate(raw.to === undefined ? Math.min(start.take.b, start.source + (raw.type === 'meme' ? 1.8 : 2.5)) : raw.to, 'to')
     if (end.edit <= start.edit) fail(`at=${raw.at}, to=${raw.to} tạo thời lượng không dương sau khi ghép đoạn`)
-    if (['cutout', 'panel', 'behind'].includes(raw.type) && start.take !== end.take) fail(`${raw.type} phải nằm trọn trong một đoạn giữ`)
+    if ((['cutout', 'panel', 'behind', 'review-bds-clone'].includes(raw.type) || (raw.type === 'title' && raw.popStyle)) && start.take !== end.take) fail(`${raw.type} phải nằm trọn trong một đoạn giữ`)
     return { ...raw, at: start.source, to: end.source } as CoreBeat
   })
 }

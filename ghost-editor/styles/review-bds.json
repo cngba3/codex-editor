@@ -1,0 +1,20 @@
+{
+  "_about": "Phần EDITED của mẫu BĐS: mở/đóng bằng talking head, keyword condensed tím hồng/xanh ngọc, số vàng/navy/cam đào; giữa video là B-roll Pexels, thẻ ảnh nền mờ và gallery ba ảnh.",
+  "brand": {
+    "accent": "#20D8CF",
+    "accentDark": "#087D79",
+    "ink": "#172C2B",
+    "capSize": 64,
+    "font": "Inter Tight"
+  },
+  "captions": {
+    "style": "review-bds",
+    "group": 4,
+    "maxChars": 24,
+    "font": "Inter Tight",
+    "size": 64,
+    "weight": 700
+  },
+  "sfxProfile": "restrained",
+  "look": {}
+}

@@ -35,6 +35,8 @@ import { installShaderRuntime, shaderLayerHtml, extractStill } from "./lib/shade
 import { loadManifest as emojiManifest, installEmoji, emojiPopHtml, emojiPopJs, EMOJI_POP_CSS, EMOJI_DIR } from "./lib/emoji-pop.mjs";
 import { makePlacer, PLATFORMS } from "./lib/safezone.mjs";
 import { amberType } from "./lib/amber-type.mjs";
+import { interviewType } from "./lib/interview-type.mjs";
+import { REVIEW_BDS_CSS, reviewBdsType } from "./lib/review-bds-type.mjs";
 import { TEMPLATE_NAMES, buildTemplateCaptions } from "./lib/caption-templates.mjs";
 import { aiTag } from "./lib/ai-tag.mjs";
 import { findTaste, loadTaste, applyTaste, checkTaste, bannedSfx } from "./lib/taste.mjs";
@@ -117,7 +119,7 @@ const fgrid = (frames) => (Math.floor((frames / FPS) * 1e6) / 1e6).toFixed(6);
 const core = (w) => w.replace(/[.,!?;:]+$/, "");
 const punct = (w) => w.slice(core(w).length);
 const whisper = JSON.parse(fs.readFileSync(path.resolve(proj, spec.words), "utf8"));
-const allWords = whisper.segments.flatMap((s) => (s.words || []).map((w) => ({ word: w.word.trim(), start: w.start, end: w.end })));
+const allWords = whisper.segments.flatMap((s, segment) => (s.words || []).map((w) => ({ word: w.word.trim(), start: w.start, end: w.end, segment })));
 const fixes = Object.entries(spec.captions?.fixes || {});
 const words = [];
 console.log("\n edit-start   orig a  ->  orig b   dur   text");
@@ -139,7 +141,7 @@ for (const [ti, k] of takes.entries()) {
     const prev = words.at(-1);
     // whisper splits "co-founder" and "50,000"; glue the pieces back
     if (prev && (text.startsWith("-") || (/^[,.]\d/.test(text) && /\d$/.test(prev.word)))) { prev.word += text; prev.end = r3(k.start + Math.min(w.end, k.b) - k.a); return; }
-    words.push({ word: text, start: r3(k.start + Math.max(w.start, k.a) - k.a), end: r3(k.start + Math.min(w.end, k.b) - k.a) });
+    words.push({ word: text, start: r3(k.start + Math.max(w.start, k.a) - k.a), end: r3(k.start + Math.min(w.end, k.b) - k.a), segment: w.segment });
   });
   const line = ws.map((w) => w.word).join(" ");
   console.log(`${k.start.toFixed(2).padStart(9)}   ${k.a.toFixed(2).padStart(7)} -> ${k.b.toFixed(2).padStart(7)}  ${k.dur.toFixed(2).padStart(5)}   ${line.slice(0, 90)}${line.length > 90 ? "..." : ""}`);
@@ -153,7 +155,7 @@ for (const [from, to] of Object.entries(spec.captions?.phrases || {})) {
   for (let i = 0; i + pat.length <= words.length; i++) {
     if (pat.every((p, k) => core(words[i + k].word).toLowerCase() === p)) {
       const tail = punct(words[i + pat.length - 1].word);
-      words[i] = { word: to + tail, start: words[i].start, end: words[i + pat.length - 1].end };
+      words[i] = { word: to + tail, start: words[i].start, end: words[i + pat.length - 1].end, segment: words[i].segment };
       words.splice(i + 1, pat.length - 1);
     }
   }
@@ -243,6 +245,11 @@ const beatSfx = (b, t, def, why, opts) => {
   const s = b.sfx === undefined ? def : b.sfx;
   if (s === false || s === "none") return;
   for (const id of [].concat(s)) addSfx(t, id, why, { ...opts, explicit: b.sfx !== undefined });
+};
+let reviewSfxCount = 0, lastReviewSfx = -Infinity;
+const reviewAccentCandidates = [];
+const reviewAccent = (beat, at, id, why) => {
+  if (spec.style === 'review-bds' && Number.isFinite(at)) reviewAccentCandidates.push({ beat, at, id, why });
 };
 let amberAccentCount = 0, lastAmberAccent = -Infinity;
 const amberAccent = (b, at, pivot = false) => {
@@ -473,7 +480,7 @@ if (spec.matte || panelMatte.length) {
   const mp = path.join(A, "talk-matte.webm");
   const mcfg = typeof spec.matte === "object" ? spec.matte : {};
   const ranges = [];
-  const wins = [...(spec.matte ? (spec.beats || []).filter((b) => b.type === "behind" && !b.front) // a front word sits over the matte
+  const wins = [...(spec.matte ? (spec.beats || []).filter((b) => (b.type === "behind" && !b.front) || (b.type === "title" && b.popStyle) || (b.type === 'review-bds-type' && b.depth === 'behind') || b.type === 'review-bds-clone')
     .map((b) => { const t0 = E(b.at, "behind at"); return [t0, b.to === undefined ? t0 + 2.5 : E(b.to, "behind to")]; }) : []), ...panelMatte];
   for (const [t0, t1] of wins) {
     for (const k of takes) {
@@ -523,8 +530,8 @@ if (spec.matte || panelMatte.length) {
       matteMediaStarts = sidecar.mediaStarts;
   }
   panelMatteOk = panelMatte.length > 0 && fs.existsSync(mp);
-  if (spec.matte) matteHtml = takes.map((k, i) => `
-      <video id="matte-${i}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${matteMediaStarts[i]}" data-track-index="2" muted playsinline></video>`).join("");
+  if (spec.matte) matteHtml = (mcfg.scope === 'first-take' ? takes.slice(0, 1) : takes).map((k, i) => `
+      <video id="matte-${i}" class="matte" src="assets/talk-matte.webm" data-start="${fgrid(k.f0)}" data-duration="${fgrid(k.frames)}" data-media-start="${mcfg.scope === 'first-take' ? 0 : matteMediaStarts[i]}" data-track-index="2" muted playsinline></video>`).join("");
 }
 // the cut-out over the panels: its own copy of the camera wrappers (pipM > baseM > snapM > pushM > punchM, every camera
 // tween drives both copies) ABOVE the panel layers and under every other overlay; one clip per panel run inside each take,
@@ -603,9 +610,10 @@ for (const b of beatsList) {
   let t1 = b.to === undefined ? (b.type === "endcard" ? TOTAL : t0 + (b.type === "meme" ? 1.8 : 2.5)) : E(b.to, `${b.type} to`);
   if (b.type === "scene" && beatsList.some((o) => o !== b && o.type === "scene" && ["expand", "wipe"].includes(o.in) && Math.abs(E(o.at) - t1) < 0.06)) t1 = r3(Math.min(TOTAL, t1 + HANDOVER));
   const dur = r3(t1 - t0);
-  // A copied style may use a headline in place of the spoken caption. Showing
-  // both layers makes the same words collide, especially on a talking head.
-  if (preset._reference && ["big", "chips", "strike", "quote", "list", "behind", "textfx", "type-composition", "type-connector"].includes(b.type))
+  // A prominent text beat replaces ordinary subtitles for every style.
+  // Keep the whole visible interval clear, including entrance and exit motion.
+  if (["big", "chips", "strike", "quote", "list", "behind", "title", "textfx", "type-composition", "type-connector", "black-flash", "hook", "step", "cta", "aside", "review-bds-type"].includes(b.type)
+      || (b.type === "scene" && (b.text || b.hero || b.lines?.length)))
     hiddenCaps.push([t0, t1]);
   const inSlot = ["emoji", "logo", "meme"].includes(b.type);
   if (inSlot) {
@@ -747,6 +755,73 @@ for (const b of beatsList) {
       if (b.sfx) beatSfx(b, t0, null, "broll in");
       break;
     }
+    case "review-bds-media": {
+      const src = userAsset(b.src);
+      const cssSrc = src.replaceAll('\\', '/');
+      const layout = ['full', 'card', 'gallery'].includes(b.layout) ? b.layout : 'full';
+      const entry = ['cut', 'blur', 'flare', 'flip'].includes(b.entry) ? b.entry : 'cut';
+      const visual = layout === 'gallery' && b.mediaKind === 'photo' && b.gallery?.length === 2
+        ? `<div class="rb-media-bg" style="background-image:url('${cssSrc}')"></div><div class="rb-gallery"><img src="${src}" alt=""/>${b.gallery.map(item => `<img src="${userAsset(item)}" alt=""/>`).join('')}</div>`
+        : layout === 'card' && b.mediaKind === 'photo'
+          ? `<div class="rb-media-bg" style="background-image:url('${cssSrc}')"></div><img class="rb-media-card" src="${src}" alt=""/>`
+          : b.mediaKind === 'video'
+            ? `<video id="${id}-v" src="${src}" data-start="${t0}" data-duration="${dur}" data-media-start="${b.in ?? 0}" data-track-index="2" muted playsinline></video>`
+            : `<img src="${src}" alt=""/>`;
+      b._track = 2;
+      inner = `<div id="${id}-in" class="ov rb-media ${layout}" data-layout-allow-overflow="true">${visual}${entry === 'flare' ? '<div class="rb-flare"></div>' : ''}</div>`;
+      if (entry === 'blur') tl.push(`ft("#${id}-in", { autoAlpha:0,scale:1.08,filter:"blur(22px)" }, { autoAlpha:1,scale:1,filter:"blur(0px)",duration:.3,ease:"expo.out" }, ${t0});`);
+      else tl.push(`ft("#${id}-in", { autoAlpha:0,scale:1.03 }, { autoAlpha:1,scale:1,duration:.16,ease:"power2.out" }, ${t0});`);
+      if (entry === 'flare') tl.push(`ft("#${id}-in .rb-flare", { autoAlpha:.95 }, { autoAlpha:0,duration:.38,ease:"power2.out" }, ${t0});`);
+      if (b.mediaKind === 'video') tl.push(`tl.set("#${id}-in", { autoAlpha: 0 }, ${t1});`);
+      if (layout === 'card' && b.mediaKind === 'photo') {
+        tl.push(`ft("#${id}-in .rb-media-card", { autoAlpha:0, y:130, scale:.9, filter:"blur(12px)" }, { autoAlpha:1, y:0, scale:1, filter:"blur(0px)", duration:.48, ease:"expo.out" }, ${t0});`);
+        if (dur > .8) tl.push(`tl.to("#${id}-in .rb-media-card", { scale:1.035, duration:${(dur - .48).toFixed(3)}, ease:"none" }, ${(t0 + .48).toFixed(3)});`);
+        if (dur > .6) tl.push(`tl.to("#${id}-in .rb-media-card", { autoAlpha:0, y:-26, filter:"blur(10px)", duration:.22, ease:"power2.in" }, ${r3(t1 - .22)});`);
+      }
+      if (layout === 'gallery' && b.gallery?.length === 2) {
+        if (entry === 'flip') tl.push(`ft("#${id}-in .rb-gallery", {autoAlpha:0,rotationY:58,scale:.84,filter:"blur(10px)"}, {autoAlpha:1,rotationY:0,scale:1,filter:"blur(0px)",duration:.62,ease:"expo.out"}, ${t0});`);
+        b.gallery.forEach((_, index) => tl.push(`ft("#${id}-in .rb-gallery img:nth-child(${index + 1})", { autoAlpha:0, y:70, scale:.95, filter:"blur(5px)" }, { autoAlpha:1, y:0, scale:1, filter:"blur(0px)", duration:.38, ease:"expo.out" }, ${(t0 + index * .11).toFixed(3)});`));
+      }
+      if (layout === 'full' && b.mediaKind !== 'video') tl.push(`ft("#${id}-in > img", { scale: 1 }, { scale: 1.055, duration: ${dur}, ease: "none" }, ${t0});`);
+      if (layout === 'card' || layout === 'gallery' || entry === 'flare' || entry === 'blur') reviewAccent(b, t0, 'whoosh-cine', 'review image reveal');
+      break;
+    }
+    case "review-bds-type": {
+      const result = reviewBdsType({ beat: b, id, t0, t1, E, esc, tl, faceTop: face ? placer.span(t0, t1).top : undefined });
+      inner = result.html;
+      b._track = 4;
+      if (b.depth === 'behind' && spec.matte) {
+        behindHtml.push(`<div id="${id}" class="clip layer rb-depth-layer" data-start="${t0}" data-duration="${dur}" data-track-index="2">${inner}</div>`);
+        tl.push(exit(`#${id}-in`, t1));
+        b._popBehind = true;
+      }
+      const accent = b.parts?.find(part => ['flash', 'jitter', 'flicker'].includes(part.motion)) || b.parts?.find(part => ['magenta', 'coral', 'teal', 'yellow', 'navy', 'peach', 'plum', 'ghost'].includes(part.role));
+      if (accent) {
+        const sfxId = ['magenta', 'coral'].includes(accent.role) || ['flash', 'jitter'].includes(accent.motion)
+          ? 'shutter-1'
+          : ['yellow', 'navy', 'peach', 'plum'].includes(accent.role)
+            ? 'impact-1'
+            : accent.role === 'ghost'
+              ? 'pop-1'
+              : 'whoosh-cine';
+        reviewAccent(b, E(accent.at, 'Review BDS accent'), sfxId, 'review headline');
+      }
+      break;
+    }
+    case 'review-bds-clone': {
+      if (!spec.matte || !fs.existsSync(path.join(A, 'talk-matte.webm'))) die('Review BDS clone needs a person matte');
+      inner = `<div id="${id}-in" class="rb-clone">${spec.reviewCloneStill && fs.existsSync(path.join(proj, spec.reviewCloneStill))
+        ? `<img src="${spec.reviewCloneStill}" alt="" />`
+        : `<video id="${id}-media" class="clip" src="assets/talk-matte.webm" data-start="${t0}" data-duration="${dur}" data-media-start="${spec.matte?.scope === 'first-take' ? t0 - takes[0].start : mediaAt(t0)}" data-track-index="7" muted playsinline></video>`}</div>`;
+      // 4-beat negative-invert / B&W strobe cutout clone matching @editortapsu78 @ 9.6s.
+      tl.push(`ft("#${id}-in",{autoAlpha:0,y:85,scale:.78,filter:"grayscale(1) invert(1) contrast(1.4) brightness(1.15)"},{autoAlpha:1,y:0,scale:1,filter:"grayscale(1) invert(1) contrast(1.4) brightness(1.15)",duration:.07,ease:"expo.out"},${t0});`);
+      tl.push(`tl.set("#${id}-in",{filter:"grayscale(1) invert(0) contrast(1.22) brightness(1.02)"},${r3(t0 + .085)});`);
+      tl.push(`tl.set("#${id}-in",{filter:"grayscale(1) invert(1) contrast(1.4) brightness(1.15)"},${r3(t0 + .17)});`);
+      tl.push(`tl.set("#${id}-in",{filter:"grayscale(1) invert(0) contrast(1.22) brightness(1.02)"},${r3(t0 + .255)});`);
+      tl.push(`tl.to("#${id}-in",{autoAlpha:0,y:25,duration:.1,ease:"power2.in"},${r3(Math.max(t0+.3,t1-.1))});`);
+      reviewAccent(b, t0, 'shutter-1', 'review cutout clone');
+      break;
+    }
     case "type-composition": {
       const parts = Array.isArray(b.parts) ? b.parts.slice(0, 6) : [];
       if (!parts.length) break;
@@ -759,6 +834,10 @@ for (const b of beatsList) {
         amberAccent(b, E(hero.at, "amber hero"));
       }
       const head = face ? placer.span(t0, t1) : null;
+      if (spec.style === 'ref-b018836f') {
+        inner = interviewType({ parts, head, id, t0, t1, E, esc, tl, accent: brand.accent || '#D7FF55', placement: b.placement, effect: b.effect });
+        break;
+      }
       if (spec.style === 'amber-talk' && parts.every(p => Number.isInteger(p.row))) {
         inner = amberType({ parts, layout: b.layout, placement: b.placement, head, id, t0, t1, E, esc, tl, accent: brand.accent || '#F4E7A5' });
         break;
@@ -896,6 +975,50 @@ for (const b of beatsList) {
       break;
     }
     case "title": {
+      if (b.popStyle) {
+        const titleWords = Array.isArray(b.words) ? b.words : [];
+        const phrase = titleWords.map(word => String(word.text || "")).join(" ").trim();
+        if (!phrase) break;
+        const head = face ? placer.span(t0, t1) : null;
+        const upperRoom = head?.seen ? Math.max(0, head.top - 90) : 820;
+        const behindPerson = !!spec.matte;
+        // When person matte is active, ALWAYS keep giant POP text behind the speaker's head/shoulders!
+        // Only fall back to foreground lower placement when matte is unavailable and upper space is cramped.
+        const lower = !behindPerson && upperRoom < 260;
+        const available = lower && head?.seen ? Math.max(280, H - head.bottom - 160) : Math.max(420, behindPerson ? 680 : upperRoom + 40);
+        let size = phrase.length <= 11 ? 265 : phrase.length <= 18 ? 215 : phrase.length <= 30 ? 174 : 146;
+        const estimateHeight = () => Math.ceil(Math.max(1, phrase.length * size * .46 / 960)) * size * .94 + (b.kicker ? 92 : 0);
+        while (size > 110 && estimateHeight() > available) size -= 8;
+        const height = estimateHeight();
+        const y = lower && head?.seen ? Math.min(H - height - 120, head.bottom + 40)
+          : behindPerson
+            ? (head?.seen ? Math.max(70, Math.min(460, Math.round(head.top - height * .52))) : 150)
+            : Math.max(65, Math.min(180, upperRoom - height - 15));
+        const wordHtml = titleWords.map((word, index) => {
+          const at = E(word.at, "POP title word");
+          tl.push(`ft("#${id}-w${index}", { autoAlpha: 0, y: 12, scale: 1.24, filter: "blur(24px)" }, { autoAlpha: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.22, ease: "expo.out" }, ${at});`);
+          return `<span id="${id}-w${index}" class="pop-word">${esc(word.text)}</span>`;
+        }).join("");
+        const kicker = String(b.kicker || "").trim();
+        const kickerWords = kicker ? kicker.split(/\s+/).filter(Boolean) : [];
+        const kickerAt = E(b.kickerAt ?? b.at, "POP kicker");
+        const kickerHtml = kickerWords.length ? `<div id="${id}-k" class="pop-kicker">${kickerWords.map((kw, ki) => {
+          const kwAt = r3(kickerAt + ki * 0.11);
+          tl.push(`ft("#${id}-kw${ki}", { autoAlpha: 0, scale: .86, filter: "blur(14px)" }, { autoAlpha: 1, scale: 1, filter: "blur(0px)", duration: 0.22, ease: "expo.out" }, ${kwAt});`);
+          return `<span id="${id}-kw${ki}" class="pop-kw">${esc(kw)}</span>`;
+        }).join(" ")}</div>` : "";
+        inner = `<div id="${id}-in" class="ov pop-wrap" style="left:42px;right:42px;top:${Math.round(y)}px;z-index:4">${kickerHtml}<div class="pop-body" style="font-size:${size}px">${wordHtml}</div></div>`;
+        // Signature cross-blur dissolve exit matching the POP sample transition into the next phrase.
+        if (dur > 0.35) {
+          tl.push(`tl.to("#${id}-in", { autoAlpha: 0, scale: 1.12, filter: "blur(26px)", duration: 0.2, ease: "power2.in" }, ${r3(t1 - 0.2)});`);
+        }
+        if (behindPerson) {
+          behindHtml.push(`<div id="${id}" class="clip layer" data-start="${t0}" data-duration="${dur}" data-track-index="1">${inner}</div>`);
+          b._popBehind = true;
+        }
+        if (b.sfx) beatSfx(b, t0, null, "POP headline");
+        break;
+      }
       // giant display words that pop in one by one on their spoken times (`words: [{text, at}]`), or a whole `text` at once
       const phrase = String(b.text ?? (Array.isArray(b.words) ? b.words.map(w => w.text).join(" ") : "")).trim();
       const parts = phrase.split(/\s+/);
@@ -1037,10 +1160,10 @@ for (const b of beatsList) {
     default:
       die(`unknown beat type '${b.type}'`);
   }
-  if (b.type === "behind") continue;
-  if (!["endcard", "scene", "broll", "textfx"].includes(b.type) && !isStanBeat(b) && !fluentBeats.has(id) && !(b.type === "meme" && memeLib(b.id).meta.clip)) tl.push(exit(`#${id}-in`, t1));
+  if (b.type === "behind" || b._popBehind) continue;
+  if (!["endcard", "scene", "broll", "textfx", "review-bds-media", "review-bds-clone"].includes(b.type) && !isStanBeat(b) && !fluentBeats.has(id) && !(b.type === "meme" && memeLib(b.id).meta.clip)) tl.push(exit(`#${id}-in`, t1));
   // a timed <video> inside (B-roll, meme clip, animated emoji, a stan panel) needs an untimed wrapper; the emoji pop has its own exit
-  const clipMeme = b.type === "broll" || b._timedInside || fluentBeats.has(id) || (b.type === "meme" && memeLib(b.id).meta.clip);
+  const clipMeme = b.type === "broll" || (b.type === "review-bds-media" && b.mediaKind === 'video') || (b.type === 'review-bds-clone' && !spec.reviewCloneStill) || b._timedInside || fluentBeats.has(id) || (b.type === "meme" && memeLib(b.id).meta.clip);
   overlays.push({ html: clipMeme
     ? `<div id="${id}" class="layer"${b._z ? ` style="z-index:${b._z}"` : ""}>${inner}</div>` // the <video> inside is the timed element; a timed wrapper would break it
     : `<div id="${id}" class="clip layer" data-start="${t0}" data-duration="${dur}" data-track-index="${b._track ?? (b.type === "scene" || b.type === "textfx" || b.type === "black-flash" ? 4 : inSlot ? 3 : 2)}">${inner}</div>` });
@@ -1058,6 +1181,12 @@ for (const b of beatsList) {
 }
 stanPipTweens(stan, stanCtx);
 for (const s of spec.sfx || []) addSfx(E(s.at, "sfx"), s.id, "manual", { db: s.db ?? 0, lead: s.lead ?? 0 });
+for (const { beat, at, id, why } of reviewAccentCandidates.sort((a, b) => a.at - b.at)) {
+  if (at - lastReviewSfx < 2.4 || reviewSfxCount >= Math.max(3, Math.ceil(TOTAL / 6))) continue;
+  const before = sfxEvents.length;
+  beatSfx(beat, at, id, why, { db: id.startsWith('impact') ? -11 : -9, lead: .04 });
+  if (sfxEvents.length > before) { reviewSfxCount++; lastReviewSfx = at; }
+}
 
 // ---------- SFX rules ----------
 sfxEvents.sort((a, b) => a.t - b.t);
@@ -1088,15 +1217,19 @@ motionCtx.sidePad = placer.sidePad;
 
 // ---------- captions ----------
 const cap = { style: "house", group: 3, highlight: null, ...(spec.captions || {}) };
+if (spec.style === 'review-bds') Object.assign(cap, { style: 'review-bds', group: 4, highlight: null, background: null, size: 64 });
 if (spec.style === "launch" && cap.style === "editorial" && !cap.background) cap.background = "rgba(8,8,12,0.72)";
 if (cap.style === "editorial" && Number.isFinite(Number(cap.size))) brand.capSize = Math.max(64, Math.min(90, Number(cap.size)));
 else if (cap.style === "editorial") brand.capSize = Math.max(64, brand.capSize);
 if (cap.style === "clean" && !cap.highlight) cap.highlight = brand.accent;
 const groups = [];
 let cur = [];
-for (const w of words) {
+const captionWords = cap.style === 'review-bds' ? words.filter(w => !hiddenCaps.some(([a, b]) => w.start < b && w.end > a)) : words;
+for (const w of captionWords) {
   if (cur.length && (w.start - cur.at(-1).end > 0.6)) { groups.push(cur); cur = []; }
+  if (cap.style === 'review-bds' && cur.length && (w.segment !== cur.at(-1).segment || (cur.length >= 2 && /^(nên|nhưng|còn|thì)$/i.test(w.word)))) { groups.push(cur); cur = []; }
   if (cap.style === "mini" && cur.length && cur.map(x => x.word).join(" ").length + w.word.length + 1 > (cap.maxChars ?? 44)) { groups.push(cur); cur = []; }
+  if (cap.style === 'review-bds' && cur.length && (w.start - cur.at(-1).end > .3 || w.start - cur[0].start > .9 || cur.map(x => x.word).join(' ').length + w.word.length + 1 > 24)) { groups.push(cur); cur = []; }
   cur.push(w);
   if (cur.length >= cap.group || /[.?!,]$/.test(w.word)) { groups.push(cur); cur = []; }
 }
@@ -1108,27 +1241,46 @@ const complement = (wins) => { const out = []; let c = 0; for (const [a, b] of [
 // caption templates: hype, explosive, line-focus, neo-minimal, karaoke-fill, highlighter (lib/caption-templates.mjs)
 const isTpl = TEMPLATE_NAMES.includes(cap.style);
 if (cap.style !== "editorial" && cap.style !== "none" && !isTpl) {
-  const wins = cap.onlyInScenes ? complement(shownCaps) : hiddenCaps;
+  const wins = cap.onlyInScenes ? [...complement(shownCaps), ...hiddenCaps] : hiddenCaps;
   const merged = [];
   for (const [a, b] of [...wins].sort((x, y) => x[0] - y[0])) { if (merged.length && a <= merged.at(-1)[1] + 0.05) merged.at(-1)[1] = Math.max(merged.at(-1)[1], b); else merged.push([a, b]); }
   const startsHidden = merged.some(([a, b]) => a <= 0.001 && b > 0);
   tl.push(`tl.set("#caps", { autoAlpha: ${startsHidden ? 0 : 1} }, 0);`);
   for (const [a, b] of merged) { tl.push(`tl.set("#caps", { autoAlpha: 0 }, ${r3(a)});`); tl.push(`tl.set("#caps", { autoAlpha: 1 }, ${r3(b)});`); }
 }
-const edit = cap.style === "editorial" ? buildEditorialCaptions(words, cap, motionCtx, cap.onlyInScenes ? complement(shownCaps) : hiddenCaps) : null;
+const captionHideWindows = cap.onlyInScenes ? [...complement(shownCaps), ...hiddenCaps] : hiddenCaps;
+const edit = cap.style === "editorial" ? buildEditorialCaptions(words, cap, motionCtx, captionHideWindows) : null;
 // a template keeps its own grouping and size: only reel.json's own captions block overrides it, never the style
 // preset (a preset's group/y would also switch off the face-aware placer)
 fs.mkdirSync(path.join(proj, "build"), { recursive: true });
 const aiTags = isTpl && cap.ai ? await aiTag(words, { cache: path.join(proj, "build", "ai-tags.json") }) : undefined;
 const tasteCap = Object.fromEntries(tasteApplied.filter((x) => x.path.startsWith("captions.")).map((x) => [x.path.slice(9), x.value]));
-const tpl = isTpl ? buildTemplateCaptions(words, { ...tasteCap, ...(rawSpec.captions || {}), style: cap.style, ai: aiTags }, motionCtx, cap.onlyInScenes ? complement(shownCaps) : hiddenCaps) : null;
+const tpl = isTpl ? buildTemplateCaptions(words, { ...tasteCap, ...(rawSpec.captions || {}), style: cap.style, ai: aiTags }, motionCtx, captionHideWindows) : null;
 for (const w of tpl?.warnings || []) warn.push(`captions: ${w}`);
 // chest (stan style): phrases at the chest that cut on their first word, single words, forehead words (lib/stan.mjs)
 const chest = cap.style === "chest" ? buildChestCaptions(words, cap, stan, { ...stanCtx, SPEECH }) : null;
 const capHtml = chest ? chest.html : cap.style === "none" || edit || tpl ? "" : groups.map((g, gi) => {
-  const s = Math.max(0, g[0].start - 0.05);
-  const nextS = gi + 1 < groups.length ? groups[gi + 1][0].start - 0.05 : SPEECH;
-  const e = Math.min(g.at(-1).end + 0.3, nextS, SPEECH);
+  const review = cap.style === 'review-bds';
+  const s = Math.max(0, g[0].start - (review ? 0 : 0.05));
+  const nextS = gi + 1 < groups.length ? groups[gi + 1][0].start - (review ? 0 : 0.05) : SPEECH;
+  const nextEmphasis = review ? Math.min(...hiddenCaps.filter(([a]) => a > s + .001).map(([a]) => a), Infinity) : Infinity;
+  const e = Math.min(g.at(-1).end + (review ? .13 : .3), nextS, SPEECH, nextEmphasis);
+  if (review) {
+    if (e - s < .06) return '';
+    const media = beatsList.find(b => b.type === 'review-bds-media' && E(b.at) < e && E(b.to) > s);
+    const wantedY = media?.layout === 'gallery' ? 1420 : media?.layout === 'card' ? 300 : media ? [880, 920, 840][gi % 3] : [920, 310, 920][gi % 3];
+    const pl = media ? { y: wantedY, scale: 1, mode: 'media' } : placer.place(s, e, 96, wantedY);
+    const motion = ['blur', 'rise', 'blur', 'cut'][gi % 4];
+    g.forEach((w, wi) => {
+      const id = `#cg${gi}w${wi}`;
+      const at = r3(w.start);
+      if (motion === 'cut' && wi) tl.push(`ft("${id}",{autoAlpha:0},{autoAlpha:1,duration:.025,ease:"none"},${at});`);
+      else if (motion === 'blur') tl.push(`ft("${id}",{autoAlpha:0,y:12,scale:.95,filter:"blur(7px)"},{autoAlpha:1,y:0,scale:1,filter:"blur(0px)",duration:.2,ease:"expo.out"},${at});`);
+      else tl.push(`ft("${id}",{autoAlpha:0,y:14,filter:"blur(4px)"},{autoAlpha:1,y:0,filter:"blur(0px)",duration:.18,ease:"expo.out"},${at});`);
+    });
+    if (e - s > .35) tl.push(`tl.to("#cg${gi} .w",{autoAlpha:0,x:22,y:-6,filter:"blur(8px)",duration:.18,stagger:.015,ease:"power2.in"},${r3(e - .18)});`);
+    return `<div id="cg${gi}" class="cap-group rb-caption clip" style="top:${pl.y}px${pl.scale && pl.scale < 1 ? `;transform:translateX(-50%) scale(${pl.scale});transform-origin:50% 0` : ''}" data-start="${r3(s)}" data-duration="${r3(e-s)}" data-track-index="5">${g.map((w, wi) => `<span id="cg${gi}w${wi}" class="w">${esc(w.word)}</span>`).join(' ')}</div>`;
+  }
   g.forEach((w, wi) => {
     tl.push(`ft("#cg${gi}w${wi}", { scale: 1 }, { scale: 1.08, duration: 0.08, yoyo: true, repeat: 1, ease: "power1.out" }, ${r3(w.start)});`);
     if (cap.highlight) tl.push(`tl.set("#cg${gi}w${wi}", { color: "${cap.highlight}" }, ${r3(w.start)}); tl.set("#cg${gi}w${wi}", { color: "#fff" }, ${r3(Math.min(w.end + 0.02, e - 0.01))});`);
@@ -1144,8 +1296,10 @@ const capHtml = chest ? chest.html : cap.style === "none" || edit || tpl ? "" : 
 
 const cyr = /[\u0400-\u04FF]/.test(JSON.stringify(spec.beats || []) + words.map((w) => w.word).join(" "));
 const UI_FONT = brand.font || (cyr ? "Inter" : "Geist");
-const capCss = cap.style === "mini"
-  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: #fff; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} ${cap.background ? `background:${cap.background};padding:${cap.padding ?? "10px 18px"};border-radius:${cap.radius ?? 12}px;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.55); max-width: 940px; } .cap-group .w { margin: 0 0.08em; }`
+const capCss = cap.style === 'review-bds'
+  ? `.cap-group.rb-caption { font-family:'Inter Tight',Inter,sans-serif; font-size:${cap.size ?? 64}px; font-weight:700; color:#fff; letter-spacing:-.025em; line-height:1.08; background:none; padding:0; border-radius:0; text-shadow:0 2px 7px rgba(0,0,0,.72),0 0 2px rgba(0,0,0,.9); white-space:normal; max-width:850px; } .rb-caption .w { margin:0 .055em; }`
+  : cap.style === "mini"
+  ? `.cap-group { font-family: '${cap.font ?? UI_FONT}', ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? 40}px; font-weight: ${cap.weight ?? 800}; color: ${cap.color ?? "#fff"}; letter-spacing: ${cap.tracking ?? "1px"}; ${cap.upper ? "text-transform: uppercase;" : ""} ${cap.stroke ? `-webkit-text-stroke: ${cap.stroke}px rgba(0,0,0,.85); paint-order: stroke fill;` : ""} ${cap.background ? `background:${cap.background};padding:${cap.padding ?? "10px 18px"};border-radius:${cap.radius ?? 12}px;` : ""} text-shadow: 0 2px 10px rgba(0,0,0,.55); max-width: 940px; } .cap-group .w { margin: 0 0.08em; }`
   : cap.style === "clean"
   ? `.cap-group { font-family: ${UI_FONT}, system-ui, sans-serif; font-size: ${cap.size ?? brand.capSize}px; font-weight: 800; color: #fff; letter-spacing: -1px; text-shadow: 0 4px 18px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.6); }`
   : cap.style === "pill"
@@ -1256,6 +1410,13 @@ const html = `<!doctype html>
   .cap-group { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; max-width: ${W - 2 * placer.sidePad}px !important; text-align: center; line-height: 1.18; }
   .cap-backed { background: rgba(8,8,10,.55); border-radius: 20px; padding: 6px 22px; -webkit-text-stroke: 0 !important; }
   ${capCss}
+  ${spec.style === 'review-bds' ? REVIEW_BDS_CSS : ''}
+  ${spec.style === 'pop' ? `@font-face { font-family:'Dancing Script'; src:url(assets/fonts/dancing-script.ttf) format('truetype'); font-weight:700; }
+  .pop-wrap { text-align:center; will-change:transform,opacity,filter; }
+  .pop-kicker { font-family:'Dancing Script',cursive; font-size:88px; font-weight:700; line-height:1.12; color:#fff; transform:rotate(-3deg); margin-bottom:-4px; text-shadow:0 4px 14px rgba(0,0,0,.52); }
+  .pop-kw { display:inline-block; will-change:transform,opacity,filter; }
+  .pop-body { display:flex; justify-content:center; align-items:center; align-content:center; flex-wrap:wrap; font-family:'Oswald','Inter Tight',sans-serif; font-weight:700; line-height:.92; letter-spacing:-.025em; text-transform:uppercase; filter:drop-shadow(0 6px 22px rgba(0,0,0,.44)); }
+  .pop-word { display:inline-block; white-space:nowrap; margin:-.20em .01em -.18em; padding:.24em .10em .22em; background:linear-gradient(180deg,#fff380 0%,#ffe338 52%,#f2c216 100%); -webkit-background-clip:text; background-clip:text; color:transparent; will-change:transform,opacity,filter; }` : ''}
   /* layout.compact: a smaller card grammar for a narrow band (e.g. under burned-in captions) */
   .compact .card { padding: 18px 28px; border-radius: 22px; }
   .compact .big-text { font-size: 70px; letter-spacing: -1px; }

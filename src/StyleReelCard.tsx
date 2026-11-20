@@ -31,9 +31,9 @@ const sampleText: Record<string, string> = {
   kinetic: 'bắt đầu ngay hôm nay',
 }
 
-type Props = { style: EditStyle; previewSrc: string | null; favorite: boolean; onChoose: () => void; onToggleFavorite: () => void }
+type Props = { style: EditStyle; previewSrc: string | null; videoPreviewSrc: string | null; favorite: boolean; onChoose: () => void; onToggleFavorite: () => void }
 
-export default function StyleReelCard({ style, previewSrc, favorite, onChoose, onToggleFavorite }: Props) {
+export default function StyleReelCard({ style, previewSrc, videoPreviewSrc, favorite, onChoose, onToggleFavorite }: Props) {
   const details = styleDetails[style.id]
   return <article className={`library-card style-reel-card reel-${style.id}`} tabIndex={0} aria-label={`${style.name}. ${style.description}`}>
     <div className="style-reel-frame">
@@ -45,8 +45,8 @@ export default function StyleReelCard({ style, previewSrc, favorite, onChoose, o
         title={favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
       onClick={event => { event.stopPropagation(); onToggleFavorite() }}
       ><Star size={16} fill={favorite ? 'currentColor' : 'none'}/></button>
-      {previewSrc ? <img className="style-reel-image" src={previewSrc} alt="" loading="lazy"/> : <div className={`style-reel-fallback visual-${style.visual}`}/>}
-      <div className="style-reel-sample" aria-hidden="true">{sampleText[style.id] || style.name}</div>
+      {videoPreviewSrc ? <video className="style-reel-video" src={videoPreviewSrc} poster={previewSrc || undefined} autoPlay muted loop playsInline preload="metadata" aria-hidden="true"/> : previewSrc ? <img className="style-reel-image" src={previewSrc} alt="" loading="lazy"/> : <div className={`style-reel-fallback visual-${style.visual}`}/>}
+      {!videoPreviewSrc && <div className="style-reel-sample" aria-hidden="true">{sampleText[style.id] || style.name}</div>}
       <span className="style-reel-name">{style.name}</span>
       <div className="style-reel-detail">
         <small>{style.category}</small>

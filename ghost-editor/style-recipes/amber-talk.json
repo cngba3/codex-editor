@@ -6,8 +6,8 @@
   "source": "template-1 / app recipe",
   "rules": {
     "editorial": "Chọn câu trọn ý, mở đầu có hook thật trong lời nói; bỏ lần nói hỏng, lặp và khoảng ngừng. Không bịa câu, số liệu, nguồn hoặc lời kêu gọi. Đồng bộ mọi điểm nhấn với timestamp từ được nói.",
-    "visual": "Giữ da và khuôn mặt như nguồn. Phụ đề pill nền tối. Chữ nhấn trắng / vàng kem #F4E7A5, serif nhỏ làm cầu nối. Giữ nguyên cụm có nghĩa; không nhấn riêng các âm tiết vô nghĩa hay lỗi ASR. Có thể ghép nhiều kiểu chữ cùng hàng, một dòng đơn, nhóm gọn, bậc thang hoặc hai vùng; KHÔNG bắt mọi câu xếp tầng. Chữ lớn dành cho hook, bước ngoặt, kết luận; để đoạn giải thích yên với phụ đề. Không che mặt, không ép chữ nhỏ.",
-    "motion": "Cắt thẳng tại hết ý. Zoom nhẹ tại ý quan trọng, tối đa ba lần; không zoom máy móc mỗi cut. Cụm chữ xuất hiện theo thời điểm nói, phần đã hiện đứng yên. Không chèn cảnh đen toàn màn hình cho Amber Talk.",
+    "visual": "Theo video mẫu Amber Talk: giữ người nói và màu da gốc. Chữ nhấn dùng Inter Tight đậm nghiêng màu vàng kem #F4E7A5; cụm phụ dùng Inter Tight trắng cỡ vừa; cầu nối ngữ pháp dùng Playfair Display trắng nhỏ. Cụm mở như “Đã từng”, “Nhưng”, “Có thể”, “Có lẽ” có thể tách lên vùng trống trên đầu, cách rõ nhóm 2–3 tầng ở ngực. Trên cùng một hàng có thể ghép chữ nhỏ và chữ lớn chung baseline; các hàng khác nhau cùng tồn tại khi lời nói tiến triển. Không ép mọi câu thành bậc thang, không để chữ che mặt. Hiệu ứng gạch chân chỉ dùng khi hợp nghĩa, không thay thế phân cấp font, màu và vị trí. Khi chữ nhấn hiện, ẩn phụ đề thường. Các cụm mở ý như “Và”, “Cuối cùng”, “Tuy nhiên”, “Tóm lại” và chủ đề ngắn như “khách hàng” cũng có thể đứng trên đầu khi hình có chỗ; phần còn lại giữ ở vùng ngực. Chỉ tách khi cụm đó thực sự mở ý mới. Nếu một ý có ba tầng như “đứng trên / sân khấu / dẫn trò chơi”, xếp thành một nhóm gọn: cầu nối nhỏ trắng hơi lệch trái ở trên, cụm chính vàng kem lớn ở giữa, đuôi câu serif rất nhỏ hơi lệch phải ở dưới. Không trải các tầng ra hai mép khung hình.",
+    "motion": "Các cụm xuất hiện đúng lúc được nói; chữ đã hiện giữ nguyên vị trí khi tầng mới xuất hiện. Cắt thẳng ở hết ý, zoom nhẹ theo ý quan trọng. Không tự chèn cảnh đen toàn màn hình.",
     "sound": "Giọng là chính; SFX nhỏ theo vai trò, không đặt mỗi từ một tiếng. Nhạc nhẹ, duck dưới giọng. Không tự suy đoán âm thanh của video mẫu từ ảnh tĩnh.",
     "assets": "Chỉ dùng ảnh/footage thực sự liên quan câu đang nói; lưu nguồn. Thiếu ảnh phù hợp thì bỏ điểm chèn, không thay bằng ảnh sai ý. Dữ liệu biểu đồ phải có trong lời nói hoặc nguồn được cung cấp. Không tái sử dụng nội dung ví dụ của recipe."
   },
@@ -18,9 +18,12 @@
     "Không cắt hụt lời; hình và âm thanh khớp",
     "Không có khung đen hoặc đứng hình ngoài chủ ý",
     "Tuân thủ bố cục, nhịp và đặc trưng của recipe",
-    "Giọng rõ, SFX và nhạc không lấn giọng"
+    "Giọng rõ, SFX và nhạc không lấn giọng",
+    "Mọi style: khi chữ nhấn hoặc tiêu đề thay lời nói đang hiện, ẩn phụ đề thường trong toàn bộ thời gian chữ đó nhìn thấy; không lặp cùng nội dung ở hai vị trí. Phụ đề trở lại sau khi chữ nhấn biến mất.",
+    "Nếu có lời nói trong đoạn mở, dấu hiệu hình/chữ/chuyển động đặc trưng của style phải xuất hiện trong 3 giây đầu video thành phẩm",
+    "Amber Talk giữ phân cấp chữ vàng kem lớn, chữ phụ trắng vừa, cầu nối serif nhỏ; cụm nối tách trên đầu khi phù hợp; câu 3 tầng giữ các tầng cùng hiển thị và không che mặt."
   ],
   "limitations": "",
-  "rendererFingerprint": "e164f19ae884d6a1",
-  "fingerprint": "d8a6da5234df3d1e"
+  "rendererFingerprint": "d82ee5ce9ff77f0d",
+  "fingerprint": "1150229b96c62f03"
 }

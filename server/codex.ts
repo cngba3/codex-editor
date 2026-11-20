@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { availableModels, saveSelectedModel, selectedModel } from './codex-model'
+import { activeProvider, antigravityStatus, loginAntigravity, logoutAntigravity, saveActiveProvider, saveAntigravityModel } from './antigravity'
 
 const execFileAsync = promisify(execFile)
 let loginRunning = false
@@ -27,7 +28,7 @@ async function status() {
   } catch (error) {
     const failure = error as Error & { code?: string; stdout?: string; stderr?: string }
     if (failure.code === 'ENOENT') return { installed: false, connected: false, detail: 'Chưa tìm thấy Codex CLI trên máy.', models: [], model: selectedModel() }
-    return { installed: true, connected: false, detail: `${failure.stdout || ''}${failure.stderr || ''}`.trim() || 'Codex chưa đăng nhập hoặc không phản hồi.', models: availableModels(), model: selectedModel() }
+    return { installed: true, connected: false, detail: `${failure.stdout || ''}${failure.stderr || ''}`.trim() || 'Codex chưa đăng nhập hoặc không phản hồi.', models: [], model: selectedModel() }
   }
 }
 
@@ -45,8 +46,57 @@ function safeOrigin(request: IncomingMessage) {
   } catch { return false }
 }
 
+async function readJson(request: IncomingMessage) {
+  let body = ''
+  for await (const chunk of request) {
+    body += Buffer.from(chunk).toString('utf8')
+    if (body.length > 2048) throw new Error('Dữ liệu quá dài.')
+  }
+  return JSON.parse(body || '{}') as Record<string, unknown>
+}
+
 export async function codexApi(request: IncomingMessage, response: ServerResponse, next: () => void) {
   const path = request.url?.split('?')[0]
+  if (path === '/api/agent/status' && request.method === 'GET') {
+    const force = (request.url || '').includes('force=1')
+    const [codex, antigravity] = await Promise.all([status(), antigravityStatus(force)])
+    send(response, 200, { provider: activeProvider(), codex, antigravity })
+    return
+  }
+  if (path === '/api/agent/provider' && request.method === 'POST') {
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    try {
+      const data = await readJson(request)
+      if (data.provider !== 'codex' && data.provider !== 'antigravity') throw new Error('Agent không hợp lệ.')
+      saveActiveProvider(data.provider)
+      send(response, 200, { provider: data.provider })
+    } catch (error) { send(response, 400, { error: error instanceof Error ? error.message : 'Không đổi được agent.' }) }
+    return
+  }
+  if (path === '/api/antigravity/login' && request.method === 'POST') {
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    try {
+      const result = await loginAntigravity()
+      send(response, 200, result)
+    } catch (error) { send(response, 502, { error: error instanceof Error ? error.message : 'Không mở được đăng nhập Antigravity.' }) }
+    return
+  }
+  if (path === '/api/antigravity/logout' && request.method === 'POST') {
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    const nextStatus = logoutAntigravity()
+    send(response, 200, { connected: false, detail: nextStatus.detail, status: nextStatus })
+    return
+  }
+  if (path === '/api/antigravity/model' && request.method === 'POST') {
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
+    try {
+      const data = await readJson(request)
+      if (typeof data.model !== 'string') throw new Error('Model không hợp lệ.')
+      saveAntigravityModel(data.model)
+      send(response, 200, { model: data.model })
+    } catch (error) { send(response, 400, { error: error instanceof Error ? error.message : 'Không lưu được model Antigravity.' }) }
+    return
+  }
   if (path === '/api/codex/status' && request.method === 'GET') {
     send(response, 200, await status())
     return
@@ -54,12 +104,7 @@ export async function codexApi(request: IncomingMessage, response: ServerRespons
   if (path === '/api/codex/model' && request.method === 'POST') {
     if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
     try {
-      let body = ''
-      for await (const chunk of request) {
-        body += Buffer.from(chunk).toString('utf8')
-        if (body.length > 1024) throw new Error('Dữ liệu quá dài.')
-      }
-      const data = JSON.parse(body) as { model?: unknown }
+      const data = await readJson(request)
       if (typeof data.model !== 'string') throw new Error('Model không hợp lệ.')
       saveSelectedModel(data.model)
       send(response, 200, { model: data.model })
@@ -68,18 +113,18 @@ export async function codexApi(request: IncomingMessage, response: ServerRespons
   }
   if (path === '/api/codex/logout' && request.method === 'POST') {
     if (loginRunning) { send(response, 409, { error: 'Codex login is still running.' }); return }
-    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'YÃªu cáº§u khÃ´ng há»£p lá»‡.' }); return }
+    if (!safeOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) { send(response, 403, { error: 'Yêu cầu không hợp lệ.' }); return }
     const auth = await status()
     if (!auth.installed) { send(response, 404, { error: auth.detail }); return }
-    if (!auth.connected) { send(response, 200, { connected: false, detail: 'Codex hiá»‡n Ä‘Ã£ Ä‘Äƒng xuáº¥t.' }); return }
+    if (!auth.connected) { send(response, 200, { connected: false, detail: 'Codex hiện đã đăng xuất.' }); return }
     try {
       await execFileAsync(codexExecutable(), ['logout'], { timeout: 10000, windowsHide: true })
       const current = await status()
-      if (current.connected) { send(response, 502, { error: 'Codex váº«n cÃ²n Ä‘Äƒng nháº­p sau khi cháº¡y logout.' }); return }
-      send(response, 200, { connected: false, detail: 'ÄÃ£ Ä‘Äƒng xuáº¥t Codex.' })
+      if (current.connected) { send(response, 502, { error: 'Codex vẫn còn đăng nhập sau khi chạy logout.' }); return }
+      send(response, 200, { connected: false, detail: 'Đã đăng xuất Codex.' })
     } catch (error) {
       const failure = error as Error & { stderr?: string; stdout?: string }
-      send(response, 502, { error: `${failure.stderr || failure.stdout || failure.message}`.trim() || 'KhÃ´ng Ä‘Äƒng xuáº¥t Ä‘Æ°á»£c Codex.' })
+      send(response, 502, { error: `${failure.stderr || failure.stdout || failure.message}`.trim() || 'Không đăng xuất được Codex.' })
     }
     return
   }

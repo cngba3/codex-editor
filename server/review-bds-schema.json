@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["typography", "media"],
+  "properties": {
+    "typography": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "placement", "align", "text", "at", "to", "parts"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["talk", "display"] },
+          "placement": { "type": "string", "enum": ["upper", "upper-left", "upper-right", "center", "mid-left", "mid-right", "lower-left"] },
+          "align": { "type": "string", "enum": ["left", "center", "right"] },
+          "text": { "type": "string" },
+          "at": { "type": "number" },
+          "to": { "type": "number" },
+          "parts": {
+            "type": "array", "minItems": 1, "maxItems": 6,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["text", "role", "row", "motion"],
+              "properties": {
+                "text": { "type": "string" },
+                "role": { "type": "string", "enum": ["white", "dark", "magenta", "coral", "teal", "yellow", "navy", "peach", "plum", "script", "serif", "muted", "ghost"] },
+                "row": { "type": "integer", "minimum": 0, "maximum": 3 },
+                "motion": { "type": "string", "enum": ["rise", "spread", "slam", "flicker", "jitter", "flash", "wipe", "drift", "cut"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query", "at", "to", "preferVideo", "spokenIdea", "layout", "entry"],
+        "properties": {
+          "query": { "type": "string" },
+          "at": { "type": "number" },
+          "to": { "type": "number" },
+          "preferVideo": { "type": "boolean" },
+          "spokenIdea": { "type": "string" },
+          "layout": { "type": "string", "enum": ["full", "card", "gallery"] },
+          "entry": { "type": "string", "enum": ["cut", "blur", "flare", "flip"] }
+        }
+      }
+    }
+  }
+}

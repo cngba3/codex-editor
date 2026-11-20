@@ -75,12 +75,17 @@ export async function buildNative(input: { root: string; directory: string; reci
   const { root, directory, recipe, codex, run, round, feedback = '', notes = '', missingVisual = '' } = input
   const driver = join(root, 'server/native-recipe.py')
   const api = await run('uv', [...pythonArgs, driver, 'api', recipe.id])
-  const components = await run('uv', [...pythonArgs, join(root, 'ghost-editor/scripts/components.py'), 'plan', '--style', nativeRecipe(recipe.id)!.folder]).catch(() => 'No component history available for this recipe yet.')
+  const components = recipe.id === 'clean-os'
+    ? 'Use the new reference-specific text and black-statement methods. The old OS component catalog does not apply.'
+    : await run('uv', [...pythonArgs, join(root, 'ghost-editor/scripts/components.py'), 'plan', '--style', nativeRecipe(recipe.id)!.folder]).catch(() => 'No component history available for this recipe yet.')
   const build = join(directory, 'build'), output = join(build, `native-plan-${round}.json`)
   const previous = round > 0 && existsSync(join(build, `native-plan-${round - 1}.json`)) ? readFileSync(join(build, `native-plan-${round - 1}.json`), 'utf8') : ''
   const assets = readdirSync(join(directory, 'assets')).filter(name => /\.(mp4|webm|png|jpg|wav)$/.test(name))
   const resultDirection = ['result-podcast', 'face-result'].includes(recipe.id)
     ? `FACE RESULT DIRECTION: The speaker remains the visual anchor, but the edit must progress visually with the story. The house recipe calls for physical artifacts from the speaker's world, not the same generic sheet of text repeated with new words. For each main thought, choose a materially different object or treatment (for example a notebook page, receipt, ticket, marked photo or paper stack) only when that object makes the spoken idea clearer. Use the public scene(), polaroid(), prop() and punch() APIs when appropriate; a scene must stay under 2.5 seconds and never interrupt a sentence. On a reel longer than 30 seconds, plan a distinct opening device, at least one purposeful change of visual grammar near a real rhetorical turn, and a clean ending. Vary entrance, scale and placement without covering the face. Do not use four consecutive HTML props with the same .sheet structure, and do not treat changing the words on an otherwise identical card as a new visual beat. Do not force unrelated stock footage or invent facts. Explain in rationale why each visual belongs to the speaker's story.`
+    : ''
+  const cleanDirection = recipe.id === 'clean-os'
+    ? `CLEAN OS REFERENCE DIRECTION: Follow the supplied @lamdiphuc frames precisely. Keep the source footage warm and the speaker visible. Use four separate text roles: bold = compact heavy white Inter Tight; script = elegant thin yellow Dancing Script; chalk = rough yellow Caveat; marker = rough white Patrick Hand. Normal between-beat captions are tiny white serif, never another oversized bold headline. Use layered_words for at least one meaningful 2-4 part spoken thought: each part has exact text, edit-time at, style bold|script|chalk|marker, optional zone chest|upper; all parts stay visible TOGETHER until common end b. For a hook, choose layout='paired' with a yellow script chest line and a white bold chest line immediately below it, visibly close like the sample's 'edit video / nhanh hơn'; their words must come from the NEW transcript. Reveal each line at its spoken onset while keeping earlier lines. For another phrase use layout='stack' as needed. A white marker upper line can have a small pointing-hand cue only when headroom permits. A product keyword at chest can use yellow chalk, distinct from the elegant script. Use number_line when a spoken number is yellow chalk beside white bold words on the same baseline. Alternate composed phrases with quiet small captions. Place the first mixed-font cue in the first 3 seconds when speech starts. For a reel of at least 8 seconds, use black_statement at a complete thought boundary, about 1.2–2.3 seconds and no more than four exact-spoken lines, only when it does not interrupt the argument. Do not copy the sample words or fabricate app UI, Figma boxes or swipes. Set build_json music to null unless the user provides a track; use maxw 2 or 3, max_chars about 18. Emphasized text replaces ordinary captions for its full visible interval.`
     : ''
   const prompt = `You are directing a Vietnamese reel using the ORIGINAL Ghost Editor recipe builder. Return a declarative plan, not Python or shell commands.\n${recipePrompt(recipe)}
 API (actual source signatures; do not invent methods):\n${api}
@@ -92,16 +97,38 @@ USER CORRECTIONS: ${notes.slice(-1000)}. Apply explicit spelling and terminology
 VISUAL ASSET RULE: Use available real footage and suitable found photos where present. If this recipe calls for an image, icon, diagram, symbol or illustration and no fitting asset is available, construct a story-specific vector or code-native graphic through the recipe's public methods. Never leave a required visual beat empty or substitute an unrelated image. Do not invent a real person, product screenshot, logo or documentary photograph. Missing photo idea: ${missingVisual.slice(0, 500) || 'none'}.
 FACE GEOMETRY IN EDIT SECONDS: ${readFileSync(join(build, 'face.json'), 'utf8')}
 Build only from the supplied API and data. Do not call tools or inspect files; all required context is included. For Seoul List the provided B-roll is in clips/support-N.mp4 (clip id support-N), with the speaker in clips/face.mp4 after setup.
-options_json is a JSON object for ${nativeRecipe(recipe.id)!.builder}(project, **options). The driver supplies project. Supply dur and title when required. Strings "$duration" and "$title" resolve to the context values. Use tail=0 where the constructor accepts it. Plates are the same original shot, not independent camera angles. Keep all spoken words captioned. For language options use vi. Do not invent source tags or chart numbers.
+options_json is a JSON object for ${nativeRecipe(recipe.id)!.builder}(project, **options). The driver supplies project. Supply dur and title when required. Strings "$duration" and "$title" resolve to the context values. Use tail=0 where the constructor accepts it. Plates are the same original shot, not independent camera angles. Keep speech readable through captions or emphasized text, but never display both layers together. For language options use vi. Do not invent source tags or chart numbers.
 build_json is a JSON object of keyword arguments to the final build() call, e.g. BIG/SCRIPT/css for FaceResult or special/css/music for CleanOS; consult actual signatures. Do not disable checks. operations contains calls in execution order. target="R" calls the builder; target="kit" or target="props" can call helpers from kit.py/props.py when those files appear in the API. target="module" calls a public helper or value constructor declared in the selected recipe module (e.g. stick/arrow/Strap). Save a returned scene/path/object with result="name", then target="name" calls it; args can reference it as {"$ref":"name"}. Constants use {"$constant":"INK"}. args_json is a JSON array; kwargs_json a JSON object; result="" if unused. Use numerical edit timestamps from the words or call R.t and save its result. Never call build: the driver calls it after your operations. Private methods, js, write_page, emit, exec, eval, raw scripts and absolute paths are forbidden. Use real recipe calls and helpers, not screenshots of the example reel. All assets use assets/... paths. No new asset files can be created by this plan; use only available assets. For Whiteboard call page, module drawing helpers, draw/write timed to each thought. For Caption News call plates and cap covering ALL words, with true word onsets; emphasize one word per phrase. For FaceResult call its own captions/overlays methods. Respect face guards and budgets; don't disable checks.
 Plan an opening hook, progression, at least two distinct meaningful visual beats, and a clean finish. The rationale explains decisions, missing assets, and any source limitations.
 ${resultDirection}
+${cleanDirection}
 PREVIOUS PLAN: ${previous}
 FIX THESE OBSERVED ERRORS WITHOUT WEAKENING CHECKS: ${feedback.slice(-16000)}
 Return the complete replacement plan.`
   const images = [join(build, 'source-sheet.jpg'), ...assets.filter(name => /\.(png|jpg)$/.test(name) && !/grain|texture|ground/.test(name)).slice(0, 2).map(name => join(directory, 'assets', name))].filter(existsSync)
   await run(codex, ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-C', directory, ...images.flatMap(path => ['-i', path]), '--output-schema', join(root, 'server/native-plan-schema.json'), '-o', output, '-'], { input: prompt })
   const plan = JSON.parse(readFileSync(output, 'utf8'))
+  if (recipe.id === 'clean-os') {
+    const operations = plan.operations as { target: string; method: string; args_json: string; kwargs_json: string }[]
+    const legacy = operations.filter(operation => operation.target === 'R' && ['scene', 'top', 'chest', 'figma', 'pen', 'hero'].includes(operation.method))
+    if (legacy.length) throw new Error(`Clean OS mẫu mới dùng chữ nhấn và slide đen; bỏ hiệu ứng giao diện cũ: ${legacy.map(operation => operation.method).join(', ')}`)
+    const duration = Number(JSON.parse(readFileSync(join(build, 'native-context.json'), 'utf8')).duration)
+    if (duration >= 5 && !operations.some(operation => operation.target === 'R' && operation.method === 'layered_words')) {
+      throw new Error('Clean OS cần ít nhất một cụm chữ nhiều font xuất hiện nối tiếp và giữ lại cùng nhau theo video mẫu.')
+    }
+    if (duration >= 5 && !operations.some(operation => {
+      if (operation.target !== 'R' || operation.method !== 'layered_words') return false
+      const args = JSON.parse(operation.args_json) as unknown[]
+      const kwargs = JSON.parse(operation.kwargs_json) as Record<string, unknown>
+      const parts = (kwargs.parts ?? args[1]) as { style?: string }[]
+      return (kwargs.layout ?? args[4]) === 'paired' && Array.isArray(parts) && parts.length === 2 && parts[0].style === 'script' && parts[1].style === 'bold'
+    })) {
+      throw new Error('Clean OS cần một cặp hook chữ vàng nét mảnh phía trên và chữ trắng đậm sát bên dưới, xuất hiện theo đúng lời nói.')
+    }
+    if (duration >= 8 && !operations.some(operation => operation.target === 'R' && operation.method === 'black_statement')) {
+      throw new Error('Clean OS cần ít nhất một black_statement tại ranh giới ý nói để giữ nhịp cắt theo video mẫu.')
+    }
+  }
   if (round === 0 && ['result-podcast', 'face-result'].includes(recipe.id)) {
     const duration = Number(JSON.parse(readFileSync(join(build, 'native-context.json'), 'utf8')).duration)
     const operations = plan.operations as { method: string; args_json: string }[]
