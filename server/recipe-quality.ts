@@ -1,11 +1,11 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
 import { runFinalsStage } from './finals-stage'
 import { reviewPreview } from './preview-review'
 
-type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string; previewFile?: string }
+type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string; previewFile?: string; previewFallback?: boolean }
 const isJobCancelled = (error: unknown) => error instanceof Error && error.name === 'JobCancelledError'
 export async function finishRecipe(input: {
   root: string; directory: string; recipe: Recipe; run: Runner; job: QualityJob
@@ -19,6 +19,7 @@ export async function finishRecipe(input: {
   let feedback = existsSync(previousFailure) ? readFileSync(previousFailure, 'utf8').slice(-16000) : ''
   let failureSummary = ''
   job.recipe = recipe.name; job.recipeVersion = recipe.fingerprint
+  delete job.previewFallback
   try {
     await run(process.execPath, ['--check', builder])
   } catch (error) {
@@ -90,5 +91,13 @@ export async function finishRecipe(input: {
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }
-  throw new Error(`Chưa đạt kiểm tra sau 3 vòng sửa. ${failureSummary}`)
+  const previewName = job.previewFile && basename(job.previewFile) === job.previewFile && /^reel \(preview\)(?:-\d+-\d+)?\.mp4$/.test(job.previewFile)
+    ? job.previewFile : 'reel (preview).mp4'
+  const preview = join(directory, 'build/finals', previewName)
+  if (existsSync(preview) && statSync(preview).size > 0) {
+    copyFileSync(preview, output)
+    job.previewFallback = true
+    return output
+  }
+  throw new Error(`Không có video xem trước để xuất sau 3 vòng dựng. ${failureSummary}`)
 }
