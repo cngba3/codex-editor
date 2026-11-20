@@ -28,7 +28,7 @@ import { runtimeCommand } from './runtime-command'
 import { codexExecutable } from './codex'
 import { validateCoreBeats, coreTimingInstructions } from './core-beats'
 
-type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; correctionRequest?: string; provider?: AgentProvider; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; previewFile?: string; previewFallback?: boolean }
+type Job = { id: string; createdAt?: number; startedAt?: number; completedAt?: number; elapsedMs?: number; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; qa?: string; review?: string; title: string; style: string; kind?: 'preview' | 'full'; parentId?: string; notes?: string; correctionRequest?: string; provider?: AgentProvider; model?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; previewFile?: string }
 type JobMessage = { role: 'user' | 'agent'; text: string; createdAt: number; queuedForRevision?: boolean }
 type PendingRestart = { job: Job; source: string; reference?: string; notes: string }
 const root = process.cwd()
@@ -618,7 +618,7 @@ Selected takes: ${JSON.stringify(takes)}. Word timings: ${JSON.stringify(wordTim
       await finishRecipe({ root, directory, recipe, run: (command, args, options) => run(command, args, { ...options, job }), job,
         build: (round, feedback) => buildNative({ root, directory, recipe, codex: executable, run, round, feedback, notes: job.notes || notes, missingVisual: missingVisualPrompt }) })
       assertNotCancelled(job)
-      job.stage = job.previewFallback ? 'Hoàn tất · bản xem trước' : 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
+      job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
       return
     }
     const styleCaptions = (JSON.parse(readFileSync(join(ghost, 'styles', `${job.style}.json`), 'utf8')) as { captions?: Record<string, unknown> }).captions || {}
@@ -726,7 +726,7 @@ Selected takes: ${JSON.stringify(takes)}. Word timings: ${JSON.stringify(wordTim
         await run(process.execPath, [join(ghost, 'scripts', 'build.mjs'), directory])
       } })
     assertNotCancelled(job)
-    job.stage = job.previewFallback ? 'Hoàn tất · bản xem trước' : 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
+    job.stage = 'Hoàn tất'; job.progress = 100; job.status = 'done'; job.output = `/api/jobs/${job.id}/output`
     writeFileSync(join(directory, 'job.json'), JSON.stringify(job, null, 2), 'utf8')
   } catch (error) {
     if (state.cancelled!.has(job.id) || error instanceof JobCancelledError) {
@@ -780,16 +780,12 @@ function findJob(id: string): Job | undefined {
       const output = join(jobsRoot, id, 'build', 'reel.mp4')
       const quality = join(jobsRoot, id, 'build', 'quality.json')
       const gate = existsSync(quality) ? JSON.parse(readFileSync(quality, 'utf8')) as { technicalPassed?: boolean; review?: { passed?: boolean } } : null
-      const preview = previewPath(join(jobsRoot, id), saved)
-      const approvedOutput = existsSync(output) && statSync(output).size > 0 && gate?.technicalPassed && gate.review?.passed
-      const fallbackOutput = existsSync(preview) && statSync(preview).size > 0
-      if (approvedOutput || fallbackOutput) {
-        if (!approvedOutput) copyFileSync(preview, output)
-        saved.previewFallback = !approvedOutput
+      if (existsSync(output) && statSync(output).size > 0 && gate?.technicalPassed && gate.review?.passed) {
         saved.status = 'done'
-        saved.stage = saved.previewFallback ? 'Hoàn tất · bản xem trước' : 'Hoàn tất'
+        saved.stage = 'Hoàn tất · cần xem lại chất lượng'
         saved.progress = 100
         saved.output = `/api/jobs/${id}/output`
+        saved.warning = [saved.warning, saved.error].filter(Boolean).join(' ')
         saved.completedAt ||= statSync(output).mtimeMs
         delete saved.error
         writeFileSync(file, JSON.stringify(saved, null, 2), 'utf8')
