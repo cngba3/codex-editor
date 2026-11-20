@@ -7,6 +7,8 @@ import HistoryPage from './HistoryPage'
 import RecentHistoryPanel from './RecentHistoryPanel'
 import StyleReelCard from './StyleReelCard'
 import StudioStyleCard from './StudioStyleCard'
+import PexelsSettings from './PexelsSettings'
+import { localStyleVideoPreview } from './style-video'
 import { AgentChat, StudioProgress, useStudioDetail } from './StudioProgress'
 import { jobStatusText } from './job-status'
 import './render.css'
@@ -14,9 +16,11 @@ import './editor.css'
 
 type Section = 'studio' | 'projects' | 'history' | 'styles' | 'settings'
 type Mode = 'preset' | 'reference'
+type AgentProvider = 'codex' | 'antigravity'
 type CodexState = { installed: boolean; connected: boolean; detail: string; models?: { id: string; name: string }[]; model?: string }
+type AgentStatus = { provider: AgentProvider; codex: CodexState; antigravity: CodexState }
 type RenderJob = { id: string; title?: string; style?: string; stage: string; progress: number; status: 'running' | 'done' | 'error' | 'cancelled'; cancelSupported?: boolean; cancelRequested?: boolean; error?: string; warning?: string; output?: string; kind?: 'preview' | 'full'; parentId?: string; asrModel?: string; createdStyleId?: string; createdStyleName?: string; recipe?: string; recipeVersion?: string; qualityRound?: number }
-const runnableStyleIds = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'stan-style', 'explainer-vector', 'pov-montage', ...recipeCatalog.map(recipe => recipe.id)])
+const runnableStyleIds = new Set(['clean', 'editorial', 'meme', 'cinematic', 'launch', 'kinetic', 'pop', 'amber-talk', 'review-bds', 'stan-style', 'explainer-vector', 'pov-montage', ...recipeCatalog.map(recipe => recipe.id)])
 const previewStyleIds = new Set(editStyles.map(style => style.id))
 const previewFor = (id: string) => previewStyleIds.has(id) ? `/style-previews/${id}.webp` : /^ref-[a-f0-9]{8}$/.test(id) ? `/api/styles/${id}/preview` : null
 const hiddenStyleIds = new Set(['stan-style', 'seoul-list'])
@@ -72,6 +76,8 @@ export default function App() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
   const [codex, setCodex] = useState<CodexState | null>(null)
+  const [antigravity, setAntigravity] = useState<CodexState | null>(null)
+  const [agentProvider, setAgentProvider] = useState<AgentProvider>('codex')
   const [renderJob, setRenderJob] = useState<RenderJob | null>(null)
   const studioDetail = useStudioDetail(renderJob)
   const [uploading, setUploading] = useState(false)
@@ -92,6 +98,7 @@ export default function App() {
   useEffect(() => { if (hiddenStyleIds.has(styleId)) { setStyleId('amber-talk'); setSupporting([]) } }, [styleId])
 
   useEffect(() => { listProjects().then(setProjects).catch(() => setNotice('Không thể đọc bộ nhớ trình duyệt.')); void refreshStyles() }, [])
+  useEffect(() => { void refreshCodex() }, [])
   useEffect(() => { if (section === 'settings') void refreshCodex() }, [section])
   useEffect(() => { if (renderJob?.status === 'done' && renderJob.createdStyleId) { setStyleId(renderJob.createdStyleId); void refreshStyles() } }, [renderJob?.id, renderJob?.status, renderJob?.createdStyleId])
   useEffect(() => {
@@ -128,14 +135,75 @@ export default function App() {
     return () => clearInterval(timer)
   }, [renderJob?.id, renderJob?.status])
 
-  async function refreshCodex() {
+  async function refreshCodex(force = false) {
     try {
-      const response = await fetch('/api/codex/status', { cache: 'no-store' })
+      const response = await fetch(force ? '/api/agent/status?force=1' : '/api/agent/status', { cache: 'no-store' })
       if (!response.ok) throw new Error()
-      const current = await response.json() as CodexState
-      setCodex(current)
+      const current = await response.json() as AgentStatus
+      setAgentProvider(current.provider)
+      setCodex(current.codex)
+      setAntigravity(current.antigravity)
       return current
-    } catch { setCodex({ installed: false, connected: false, detail: 'Backend cục bộ chưa chạy. Dùng npm run dev.' }); return null }
+    } catch {
+      const fallback = { installed: false, connected: false, detail: 'Backend cục bộ chưa chạy. Dùng npm run dev.' }
+      setCodex(fallback)
+      setAntigravity(fallback)
+      return null
+    }
+  }
+
+  async function chooseAgentProvider(provider: AgentProvider) {
+    setModelBusy(true)
+    try {
+      const response = await fetch('/api/agent/provider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider }) })
+      const result = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(result.error || 'Không đổi được AI Agent.')
+      setAgentProvider(provider)
+      setNotice(provider === 'antigravity' ? 'Đã chuyển sang dựng video bằng Antigravity.' : 'Đã chuyển sang dựng video bằng Codex.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không đổi được AI Agent.') }
+    finally { setModelBusy(false) }
+  }
+
+  async function loginAntigravity() {
+    setAuthBusy(true)
+    try {
+      const response = await fetch('/api/antigravity/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const result = await response.json() as { connected?: boolean; started?: boolean; detail?: string; error?: string }
+      if (!response.ok) throw new Error(result.error || 'Không mở được đăng nhập Antigravity.')
+      if (result.connected) { await refreshCodex(true); setNotice('Đã kết nối Antigravity và chuyển sang dùng Antigravity.'); return }
+      setNotice(result.detail || 'Hoàn tất đăng nhập Antigravity rồi nhấn Kiểm tra lại.')
+      for (let attempt = 0; attempt < 45; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        const current = await refreshCodex(true)
+        if (current?.antigravity.connected) { await chooseAgentProvider('antigravity'); setNotice('Đã kết nối Antigravity.'); return }
+      }
+      setNotice('Chưa thấy phiên Antigravity. Hãy đăng nhập trong cửa sổ Antigravity CLI rồi nhấn Kiểm tra lại.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không thể kết nối Antigravity.') }
+    finally { setAuthBusy(false) }
+  }
+
+  async function logoutAntigravity() {
+    setAuthBusy(true)
+    try {
+      const response = await fetch('/api/antigravity/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const result = await response.json() as { detail?: string; error?: string }
+      if (!response.ok) throw new Error(result.error || 'Không thể đăng xuất Antigravity.')
+      await refreshCodex(false)
+      setNotice(result.detail || 'Đã đăng xuất Antigravity.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không thể đăng xuất Antigravity.') }
+    finally { setAuthBusy(false) }
+  }
+
+  async function chooseAntigravityModel(model: string) {
+    setModelBusy(true)
+    try {
+      const response = await fetch('/api/antigravity/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) })
+      const result = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(result.error || 'Không lưu được model Antigravity.')
+      setAntigravity(current => current ? { ...current, model } : current)
+      setNotice(model ? `Đã chọn model Antigravity: ${model}.` : 'Antigravity sẽ dùng model mặc định.')
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Không lưu được model Antigravity.') }
+    finally { setModelBusy(false) }
   }
 
   async function refreshStyles() {
@@ -156,7 +224,7 @@ export default function App() {
       for (let attempt = 0; attempt < 60; attempt++) {
         await new Promise(resolve => setTimeout(resolve, 2000))
         const current = await refreshCodex()
-        if (current?.connected) { setNotice('Đã kết nối Codex.'); return }
+        if (current?.codex.connected) { setNotice('Đã kết nối Codex.'); return }
       }
       setNotice('Chưa thấy phiên đăng nhập. Chạy codex login trong PowerShell rồi nhấn Kiểm tra lại.')
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Không thể kết nối Codex.') }
@@ -276,9 +344,20 @@ export default function App() {
 
   async function startPreview(kind: 'preview' | 'full' = 'preview') {
     if (!raw) { rawInput.current?.click(); return }
-    let currentCodex = codex
-    if (currentCodex === null) currentCodex = await refreshCodex()
-    if (!currentCodex?.connected) { navigate('settings'); setNotice('Hãy đăng nhập Codex một lần trong Thiết lập. Phiên được lưu trên máy để dùng cho các lần dựng sau.'); return }
+    let activeState = agentProvider === 'antigravity' ? antigravity : codex
+    let provider = agentProvider
+    if (activeState === null) {
+      const status = await refreshCodex()
+      provider = status?.provider || agentProvider
+      activeState = provider === 'antigravity' ? status?.antigravity || null : status?.codex || null
+    }
+    if (!activeState?.connected) {
+      navigate('settings')
+      setNotice(provider === 'antigravity'
+        ? 'Hãy đăng nhập Antigravity trong Cài đặt hoặc chuyển sang Codex để bắt đầu dựng.'
+        : 'Hãy đăng nhập Codex một lần trong Cài đặt (hoặc chuyển sang Antigravity) để bắt đầu dựng.')
+      return
+    }
     if (mode === 'reference' && !reference) { referenceInput.current?.click(); return }
     if (mode === 'preset' && !canRunStyle(styleId)) {
       setNotice('Style này chưa được nối bộ dựng.'); return
@@ -376,7 +455,17 @@ export default function App() {
             <button className={section === "settings" ? "editor-menu-item active" : "editor-menu-item"} onClick={() => navigate("settings")}><Settings2 size={16}/> Cài đặt</button>
           </nav>
         </div>
-        <div className="top-actions"><button className={codex?.connected ? 'codex-top-status is-connected' : 'codex-top-status'} onClick={() => { if (codex?.connected) void logoutCodex(); else if (codex?.installed) void loginCodex(); else navigate("settings") }} disabled={authBusy}><span/> {codex === null ? 'Tài khoản Codex' : codex.connected ? 'Đăng xuất Codex' : 'Đăng nhập Codex'}</button><span className="local-badge"><span/> Lưu trên máy</span><div className="avatar">AI</div></div>
+        <div className="top-actions">{(() => {
+          const isAgy = agentProvider === 'antigravity'
+          const active = isAgy ? antigravity : codex
+          const label = isAgy ? 'Antigravity' : 'Codex'
+          return <>
+            <button className={active?.connected ? 'codex-top-status is-connected' : 'codex-top-status'} onClick={() => navigate('settings')} disabled={authBusy}><span/> {active === null ? `AI: ${label}` : active.connected ? `${label}${active.model ? ` · ${active.model}` : ''}` : `Chưa đăng nhập ${label}`}</button>
+            {active?.connected
+              ? <button className="codex-top-status" onClick={() => void (isAgy ? logoutAntigravity() : logoutCodex())} disabled={authBusy}>{authBusy ? 'Đang xử lý...' : `Đăng xuất ${label}`}</button>
+              : <button className="codex-top-status" onClick={() => { if (active?.installed) void (isAgy ? loginAntigravity() : loginCodex()); else navigate('settings') }} disabled={authBusy}>Đăng nhập {label}</button>}
+          </>
+        })()}<span className="local-badge"><span/> Lưu trên máy</span><div className="avatar">AI</div></div>
       </header>
 
       {section === 'studio' && <div className="page studio-page"><div className="workflow"><span className="workflow-active"><b>01</b> Video nguồn</span><i/><span className={raw ? 'workflow-active' : ''}><b>02</b> Phong cách</span><i/><span className={raw && (mode === 'preset' || reference) ? 'workflow-active' : ''}><b>03</b> Chuẩn bị dựng</span></div>
@@ -384,7 +473,7 @@ export default function App() {
             <RecentHistoryPanel onOpen={() => navigate('history')} onOpenJob={openJobInStudio} activeJob={renderJob?.status === 'running' ? renderJob : null} refreshKey={renderJob ? `${renderJob.id}:${renderJob.status}` : ''} />
             <aside className="editor-library-pane">
               <div className="editor-panel-heading"><div><ImagePlus size={15}/><span>Thư viện style</span></div><small>{matchingStyles.length}</small></div>
-          {mode === 'preset' && styleSearchBar}<section className="surface style-section library-style-section"><div className="section-head"><div className="number">02</div><div><h2>Chọn phong cách</h2><p>Chọn một phong cách cho video</p></div></div>{mode === 'preset' ? <><div className="style-grid">{matchingStyles.length ? matchingStyles.map(style => <StudioStyleCard key={style.id} style={style} previewSrc={previewFor(style.id)} selected={styleId === style.id} favorite={favoriteStyleSet.has(style.id)} onChoose={() => chooseStyle(style.id)} onToggleFavorite={() => toggleFavoriteStyle(style.id)}/>) : <div className="style-search-empty">Không tìm thấy style phù hợp. Thử chủ đề khác.</div>}</div>{['stan-style', 'seoul-list', 'pov-montage'].includes(styleId) && <div className="recipe-assets"><strong>{styleId === 'stan-style' ? 'Thêm bản quay màn hình' : styleId === 'pov-montage' ? 'Thêm cảnh góc nhìn thứ nhất' : 'Thêm cảnh minh họa'}</strong><p>{styleId === 'stan-style' ? 'Mẫu này đặt màn hình công cụ phía trên người nói. Thêm bản quay màn hình đúng phần bạn đang giới thiệu.' : styleId === 'pov-montage' ? 'Thêm các clip POV thật; app chọn những cảnh khớp từng câu nói.' : 'Mẫu này dựng lời nói trên các cảnh quay. Thêm những cảnh phù hợp với nội dung video của bạn.'}</p><label className="supporting-upload">Chọn video<input type="file" multiple accept="video/*,.mov,.mkv" onChange={event => { const files = Array.from(event.target.files || []); if (files.length > 6 || files.some(f => f.size > 500 * 1024 * 1024)) { setNotice('Tối đa 6 video, mỗi video không quá 500 MB.'); return } setSupporting(files) }}/></label><p>{supporting.length ? supporting.map(file => file.name).join(' · ') : 'Chưa chọn video bổ sung'} · Tối đa 6 video, 500 MB mỗi tệp.</p>{supporting.length > 0 && <button onClick={() => setSupporting([])}>Bỏ các video này</button>}</div>}</> : <div className="reference-panel"><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'reference')}/>{reference ? <div className="reference-loaded"><div className="reference-preview"><video src={referenceUrl} controls/></div><div><strong>{reference.name}</strong><span>{size(reference.size)} · Video mẫu</span><button onClick={() => referenceInput.current?.click()}>Đổi video mẫu <ArrowRight size={15}/></button></div><button className="icon-button" onClick={() => setReference(null)}><X size={18}/></button></div> : <div className="reference-drop" role="button" tabIndex={0} onClick={() => referenceInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') referenceInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'reference') }}><div><ImagePlus size={25}/></div><strong>Thêm reel làm mẫu</strong><span>Codex phân tích từng giây của video mẫu, chép lời, học chữ và nhịp dựng rồi lưu thành style riêng.</span><b>Chọn video mẫu <ArrowRight size={15}/></b></div>}</div>}</section>
+          {mode === 'preset' && styleSearchBar}<section className="surface style-section library-style-section"><div className="section-head"><div className="number">02</div><div><h2>Chọn phong cách</h2><p>Chọn một phong cách cho video</p></div></div>{mode === 'preset' ? <><div className="style-grid">{matchingStyles.length ? matchingStyles.map(style => <StudioStyleCard key={style.id} style={style} previewSrc={previewFor(style.id)} videoPreviewSrc={localStyleVideoPreview(style.id)} selected={styleId === style.id} favorite={favoriteStyleSet.has(style.id)} onChoose={() => chooseStyle(style.id)} onToggleFavorite={() => toggleFavoriteStyle(style.id)}/>) : <div className="style-search-empty">Không tìm thấy style phù hợp. Thử chủ đề khác.</div>}</div>{['stan-style', 'seoul-list', 'pov-montage'].includes(styleId) && <div className="recipe-assets"><strong>{styleId === 'stan-style' ? 'Thêm bản quay màn hình' : styleId === 'pov-montage' ? 'Thêm cảnh góc nhìn thứ nhất' : 'Thêm cảnh minh họa'}</strong><p>{styleId === 'stan-style' ? 'Mẫu này đặt màn hình công cụ phía trên người nói. Thêm bản quay màn hình đúng phần bạn đang giới thiệu.' : styleId === 'pov-montage' ? 'Thêm các clip POV thật; app chọn những cảnh khớp từng câu nói.' : 'Mẫu này dựng lời nói trên các cảnh quay. Thêm những cảnh phù hợp với nội dung video của bạn.'}</p><label className="supporting-upload">Chọn video<input type="file" multiple accept="video/*,.mov,.mkv" onChange={event => { const files = Array.from(event.target.files || []); if (files.length > 6 || files.some(f => f.size > 500 * 1024 * 1024)) { setNotice('Tối đa 6 video, mỗi video không quá 500 MB.'); return } setSupporting(files) }}/></label><p>{supporting.length ? supporting.map(file => file.name).join(' · ') : 'Chưa chọn video bổ sung'} · Tối đa 6 video, 500 MB mỗi tệp.</p>{supporting.length > 0 && <button onClick={() => setSupporting([])}>Bỏ các video này</button>}</div>}</> : <div className="reference-panel"><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => accept(event.target.files?.[0], 'reference')}/>{reference ? <div className="reference-loaded"><div className="reference-preview"><video src={referenceUrl} controls/></div><div><strong>{reference.name}</strong><span>{size(reference.size)} · Video mẫu</span><button onClick={() => referenceInput.current?.click()}>Đổi video mẫu <ArrowRight size={15}/></button></div><button className="icon-button" onClick={() => setReference(null)}><X size={18}/></button></div> : <div className="reference-drop" role="button" tabIndex={0} onClick={() => referenceInput.current?.click()} onKeyDown={event => { if (event.key === 'Enter') referenceInput.current?.click() }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); accept(event.dataTransfer.files[0], 'reference') }}><div><ImagePlus size={25}/></div><strong>Thêm reel làm mẫu</strong><span>Codex phân tích từng giây của video mẫu, chép lời, học chữ và nhịp dựng rồi lưu thành style riêng.</span><b>Chọn video mẫu <ArrowRight size={16}/></b></div>}</div>}</section>
           </aside><div className="studio-main">
           <section className="surface source-section">
   <div className="section-head"><div><h2>{renderJob?.status === 'done' ? 'Video hoàn thành' : renderJob?.status === 'running' ? 'Đang dựng video' : 'Video nguồn'}</h2></div><span className="section-mark">{renderJob?.status === 'done' ? 'Sẵn sàng' : renderJob?.status === 'running' ? 'Đang thực hiện' : 'Bắt buộc'}</span>{(raw || renderJob) && <button type="button" className="studio-source-close" aria-label={renderJob?.status === 'running' ? 'Hủy video đang sửa' : 'Đóng video'} title={renderJob?.status === 'running' ? 'Hủy video đang sửa' : 'Đóng video'} onClick={() => { if (renderJob?.status === 'running') setCancelDialogOpen(true); else { setRaw(null); setDuration(0); clearRenderResult() } }}><X size={17}/></button>}</div>
@@ -407,9 +496,45 @@ export default function App() {
 
       {section === 'projects' && <div className="page secondary-page"><div className="secondary-toolbar"><button className="primary-button small" onClick={reset}><Plus size={17}/> Dự án mới</button></div>{projects.length ? <div className="project-grid">{projects.map(project => <article className="project-card" key={project.id}><div className={`project-cover ${project.mode === 'preset' ? `visual-${allStyles.find(style => style.id === project.style)?.visual || 'clean'}` : 'visual-reference'}`}><Film size={31}/><span>{project.mode === 'preset' ? allStyles.find(style => style.id === project.style)?.name || project.style : 'VIDEO MẪU'}</span></div><div className="project-info"><div><small><Clock3 size={13}/> {new Intl.DateTimeFormat('vi-VN').format(project.createdAt)}</small><button className="icon-button" onClick={() => removeProject(project)} title="Xóa dự án"><Trash2 size={16}/></button></div><h3>{project.title}</h3><p>{project.rawName}</p><div className="project-meta"><span>{time(project.duration)}</span><span>{size(project.size)}</span></div><button className="open-project" onClick={() => openProject(project)}>Mở dự án <ArrowRight size={16}/></button></div></article>)}</div> : <div className="empty-state"><FolderOpen size={34}/><h2>Chưa có dự án nào</h2><p>Bắt đầu với video raw đầu tiên của bạn.</p><button onClick={reset}>Tạo dự án <ArrowRight size={16}/></button></div>}</div>}
 
-      {section === 'styles' && <div className="page secondary-page">{styleSearchBar}<div className="library-grid">{!styleSearch.trim() && <article className="library-card library-copy-card"><div className="library-visual library-copy-visual"><ImagePlus size={34}/><span>Style của bạn</span></div><div className="library-body"><small>Style từ video mẫu</small><h3>Sao chép style từ video</h3><p>Chọn một video bạn thích. App phân tích cách dựng, chữ và nhịp cắt để tạo style dùng lại.</p><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => { const file = event.target.files?.[0]; if (!file) return; setMode('reference'); accept(file, 'reference'); navigate('studio') }}/><button type="button" onClick={() => referenceInput.current?.click()}>Chọn video mẫu <ArrowRight size={16}/></button></div></article>}{matchingStyles.length ? matchingStyles.map(style => <StyleReelCard key={style.id} style={style} previewSrc={previewFor(style.id)} favorite={favoriteStyleSet.has(style.id)} onChoose={() => { chooseStyle(style.id); navigate('studio') }} onToggleFavorite={() => toggleFavoriteStyle(style.id)}/>) : <div className="style-search-empty">Không tìm thấy style phù hợp. Thử chủ đề khác.</div>}</div></div>}
+      {section === 'styles' && <div className="page secondary-page">{styleSearchBar}<div className="library-grid">{!styleSearch.trim() && <article className="library-card library-copy-card"><div className="library-visual library-copy-visual"><ImagePlus size={34}/><span>Style của bạn</span></div><div className="library-body"><small>Style từ video mẫu</small><h3>Sao chép style từ video</h3><p>Chọn một video bạn thích. App phân tích cách dựng, chữ và nhịp cắt để tạo style dùng lại.</p><input ref={referenceInput} type="file" accept="video/*,.mov,.mkv,.avi" hidden onChange={event => { const file = event.target.files?.[0]; if (!file) return; setMode('reference'); accept(file, 'reference'); navigate('studio') }}/><button type="button" onClick={() => referenceInput.current?.click()}>Chọn video mẫu <ArrowRight size={16}/></button></div></article>}{matchingStyles.length ? matchingStyles.map(style => <StyleReelCard key={style.id} style={style} previewSrc={previewFor(style.id)} videoPreviewSrc={localStyleVideoPreview(style.id)} favorite={favoriteStyleSet.has(style.id)} onChoose={() => { chooseStyle(style.id); navigate('studio') }} onToggleFavorite={() => toggleFavoriteStyle(style.id)}/>) : <div className="style-search-empty">Không tìm thấy style phù hợp. Thử chủ đề khác.</div>}</div></div>}
 
-      {section === 'settings' && <div className="page secondary-page"><div className="codex-connection surface"><div className="connection-symbol"><WandSparkles size={24}/></div><div className="connection-copy"><div className="connection-heading"><h2>Tài khoản Codex</h2><span className={`connection-pill ${codex?.connected ? 'online' : ''}`}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</span></div><p>{codex?.detail || 'Chọn đăng nhập hoặc đăng xuất Codex.'}</p><small>Phiên Codex được lưu trên máy và dùng lại cho các lần dựng video sau.</small>{!codex?.connected && <small>Nếu trình duyệt không tự mở, chạy <code>codex login</code> trong PowerShell rồi nhấn “Kiểm tra lại”.</small>}</div><div className="connection-buttons">{codex?.connected ? <button className="connection-logout" onClick={logoutCodex} disabled={authBusy}>{authBusy ? 'Đang đăng xuất...' : 'Đăng xuất Codex'}</button> : <button className="connection-test" onClick={loginCodex} disabled={!codex?.installed || authBusy}>{authBusy ? 'Đang chờ đăng nhập...' : 'Đăng nhập ChatGPT'} <ArrowRight size={15}/></button>}<button className="connection-refresh" onClick={refreshCodex}>Kiểm tra lại</button></div></div>{codex?.connected && <div className="codex-model surface"><div><h2>Model Codex</h2><p>Chọn model dùng cho các lần dựng video tiếp theo trong tài khoản đang đăng nhập.</p></div><label><span>Model đang dùng</span><select value={codex.model || ''} disabled={modelBusy} onChange={event => void chooseCodexModel(event.target.value)}><option value="">Mặc định của Codex</option>{codex.models?.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>{!codex.models?.length && <small>Chưa có danh sách model từ Codex CLI. Hãy nhấn “Kiểm tra lại” sau khi đăng nhập.</small>}</div>}<div className="settings-layout"><div className="surface settings-card"><h2>Trạng thái hệ thống</h2><div className="status-row"><div className="status-icon good"><Check size={18}/></div><div><strong>Giao diện Studio</strong><span>Đang chạy</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className="status-icon good"><HardDrive size={18}/></div><div><strong>Lưu dự án cục bộ</strong><span>IndexedDB</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className={codex?.connected ? 'status-icon good' : 'status-icon pending'}><WandSparkles size={18}/></div><div><strong>Codex agent</strong><span>{codex?.connected ? 'Phiên ChatGPT đã sẵn sàng' : 'Cần đăng nhập Codex CLI'}</span></div><b className={codex?.connected ? 'status-ready' : 'status-pending'}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</b></div></div></div></div>}
+      {section === 'settings' && <div className="page secondary-page">
+        <div className="codex-model surface">
+          <div>
+            <h2>AI Agent đang dùng để edit</h2>
+            <p>Chọn dùng <strong>Codex (ChatGPT)</strong> hoặc <strong>Antigravity (Gemini / Claude)</strong> để lập kế hoạch và dựng video.</p>
+          </div>
+          <div className="connection-buttons">
+            <button className={agentProvider === 'codex' ? 'connection-test' : 'connection-refresh'} disabled={modelBusy} onClick={() => void chooseAgentProvider('codex')}>Codex (ChatGPT)</button>
+            <button className={agentProvider === 'antigravity' ? 'connection-test' : 'connection-refresh'} disabled={modelBusy} onClick={() => void chooseAgentProvider('antigravity')}>Antigravity (Gemini / Claude)</button>
+          </div>
+        </div>
+
+        <div className="codex-connection surface">
+          <div className="connection-symbol"><Sparkles size={24}/></div>
+          <div className="connection-copy">
+            <div className="connection-heading"><h2>Tài khoản Antigravity</h2><span className={`connection-pill ${antigravity?.connected ? 'online' : ''}`}>{antigravity?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</span></div>
+            <p>{antigravity?.detail || 'Đăng nhập Antigravity CLI (agy) để chọn model Gemini / Claude khi edit video.'}</p>
+            <small>Dùng trực tiếp Antigravity CLI trên máy để chọn model và phân tích / dựng video.</small>
+          </div>
+          <div className="connection-buttons">
+            {antigravity?.connected
+              ? <button className="connection-logout" onClick={logoutAntigravity} disabled={authBusy}>{authBusy ? 'Đang đăng xuất...' : 'Đăng xuất Antigravity'}</button>
+              : <button className="connection-test" onClick={loginAntigravity} disabled={!antigravity?.installed || authBusy}>{authBusy ? 'Đang kết nối...' : 'Đăng nhập Antigravity'} <ArrowRight size={15}/></button>}
+            <button className="connection-refresh" onClick={() => void refreshCodex(true)}>Kiểm tra lại</button>
+          </div>
+        </div>
+        {antigravity?.connected && <div className="codex-model surface">
+          <div><h2>Model Antigravity</h2><p>Chọn model Antigravity dùng cho các lần dựng video tiếp theo.</p></div>
+          <label><span>Model đang dùng</span><select value={antigravity.model || ''} disabled={modelBusy} onChange={event => void chooseAntigravityModel(event.target.value)}><option value="">Mặc định của Antigravity</option>{antigravity.models?.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+        </div>}
+
+        <div className="codex-connection surface"><div className="connection-symbol"><WandSparkles size={24}/></div><div className="connection-copy"><div className="connection-heading"><h2>Tài khoản Codex</h2><span className={`connection-pill ${codex?.connected ? 'online' : ''}`}>{codex?.connected ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</span></div><p>{codex?.detail || 'Chọn đăng nhập hoặc đăng xuất Codex.'}</p><small>Phiên Codex được lưu trên máy và dùng lại cho các lần dựng video sau.</small>{!codex?.connected && <small>Nếu trình duyệt không tự mở, chạy <code>codex login</code> trong PowerShell rồi nhấn “Kiểm tra lại”.</small>}</div><div className="connection-buttons">{codex?.connected ? <button className="connection-logout" onClick={logoutCodex} disabled={authBusy}>{authBusy ? 'Đang đăng xuất...' : 'Đăng xuất Codex'}</button> : <button className="connection-test" onClick={loginCodex} disabled={!codex?.installed || authBusy}>{authBusy ? 'Đang chờ đăng nhập...' : 'Đăng nhập ChatGPT'} <ArrowRight size={15}/></button>}<button className="connection-refresh" onClick={() => void refreshCodex(true)}>Kiểm tra lại</button></div></div>
+        {codex?.connected && <div className="codex-model surface"><div><h2>Model Codex</h2><p>Chọn model dùng cho các lần dựng video tiếp theo trong tài khoản đang đăng nhập.</p></div><label><span>Model đang dùng</span><select value={codex.model || ''} disabled={modelBusy} onChange={event => void chooseCodexModel(event.target.value)}><option value="">Mặc định của Codex</option>{codex.models?.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>{!codex.models?.length && <small>Chưa có danh sách model từ Codex CLI. Hãy nhấn “Kiểm tra lại” sau khi đăng nhập.</small>}</div>}
+
+        <div className="settings-layout"><div className="surface settings-card"><h2>Trạng thái hệ thống</h2><div className="status-row"><div className="status-icon good"><Check size={18}/></div><div><strong>Giao diện Studio</strong><span>Đang chạy</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className="status-icon good"><HardDrive size={18}/></div><div><strong>Lưu dự án cục bộ</strong><span>IndexedDB</span></div><b className="status-ready">SẴN SÀNG</b></div><div className="status-row"><div className={(agentProvider === 'antigravity' ? antigravity?.connected : codex?.connected) ? 'status-icon good' : 'status-icon pending'}><WandSparkles size={18}/></div><div><strong>AI Agent ({agentProvider === 'antigravity' ? 'Antigravity' : 'Codex'})</strong><span>{agentProvider === 'antigravity' ? (antigravity?.connected ? `Đã sẵn sàng${antigravity.model ? ` · ${antigravity.model}` : ''}` : 'Cần đăng nhập Antigravity') : (codex?.connected ? 'Phiên ChatGPT đã sẵn sàng' : 'Cần đăng nhập Codex CLI')}</span></div><b className={(agentProvider === 'antigravity' ? antigravity?.connected : codex?.connected) ? 'status-ready' : 'status-pending'}>{(agentProvider === 'antigravity' ? antigravity?.connected : codex?.connected) ? 'ĐÃ KẾT NỐI' : 'CHƯA KẾT NỐI'}</b></div></div></div>
+      </div>}
+      {section === 'settings' && <div className="page secondary-page"><PexelsSettings/></div>}
     </main>
     {cancelDialogOpen && renderJob?.status === 'running' && <div className="job-cancel-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setCancelDialogOpen(false) }}>
       <section className="job-cancel-dialog" role="alertdialog" aria-modal="true" aria-labelledby="job-cancel-title" aria-describedby="job-cancel-description">

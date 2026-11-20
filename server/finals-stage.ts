@@ -1,5 +1,5 @@
 import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { pythonArgs, type Runner } from './native-pipeline'
 
 function logTail(file: string) {
@@ -15,11 +15,15 @@ function logTail(file: string) {
 export async function runFinalsStage(input: { root: string; directory: string; manifest: string; stage: 'preview' | 'render'; run: Runner }) {
   const { root, directory, manifest, stage, run } = input
   const name = stage === 'preview' ? 'reel (preview)' : 'reel'
-  const output = join(directory, 'build/finals', `${name}.mp4`)
+  let output = join(directory, 'build/finals', `${name}.mp4`)
   const log = join(directory, 'build/finals', `${name}.log`)
   let stdout = ''
   try {
     stdout = await run('uv', [...pythonArgs, join(root, 'ghost-editor/scripts/finals.py'), stage, '--batch', manifest, ...(stage === 'render' ? ['--no-nomusic'] : [])])
+    if (stage === 'preview') {
+      const reported = stdout.match(/^PREVIEW_OUTPUT\t([^\r\n]+)$/m)?.[1]
+      if (reported && basename(reported) === reported) output = join(dirname(output), reported)
+    }
     // Older finals.py versions can print FAILED while returning zero.
     if (/^(?:FAILED|HELD)\b/m.test(stdout)) throw new Error(stdout.trim())
     if (!existsSync(output) || statSync(output).size === 0) throw new Error(`Không tạo được file ${name}.mp4. ${stdout.trim()}`)

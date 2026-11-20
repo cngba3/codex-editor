@@ -23,11 +23,12 @@
   "look": {},
   "_reference": {
     "id": "ref-b018836f",
-    "name": "Phỏng vấn nhấn chữ xanh chanh",
+    "name": "Interview",
+    "category": "Talking head",
     "about": "Video người nói nền tối, từ khóa xanh chanh cỡ lớn, chữ trắng xếp lệch và đồ họa nhấn theo lời nói.",
     "basePreset": "editorial",
     "study": {
-      "name": "Phỏng vấn nhấn chữ xanh chanh",
+      "name": "Interview",
       "about": "Video người nói nền tối, từ khóa xanh chanh cỡ lớn, chữ trắng xếp lệch và đồ họa nhấn theo lời nói.",
       "basePreset": "editorial",
       "accent": "#D7FF55",
@@ -50,20 +51,18 @@
       "zoom": "none",
       "blackFlash": false,
       "needsMatte": true,
-      "visualRules": "Keep the speaker centered in dark vertical footage. Place short, bold white phrases around much larger lime keywords, usually across the chest at y≈950–1220. Move text to y≈145–465 only for the observed upper-head layouts. Use the red strike and thin full-frame vertical stripes for the failing-content beat; a REC frame and dark red question bars for the recording-anxiety beat; translucent brown icon cards for the service list. Reserve a cream ring and foreground camera for relevant camera footage. Use a speaker matte when upper text passes behind the head.",
+      "visualRules": "Keep the supplied speaker footage. Recreate the Interview reference with compact mixed-size typography near the chest: one lime #D7FF55 hero keyword in heavy Inter Tight, roughly 2.5 times the size of nearby small off-white support clauses. Keep the phrases centered and tightly grouped, with supporting words above, beside, or below the hero; do not stack every word at headline size. Reveal each spoken phrase in place as it is said, then replace the group at the next idea. Use a red diagonal strike with thin vertical scanlines for a spoken failure or negation; a rough olive brush highlight for a positive key idea; and REC corners only when recording or camera anxiety is actually discussed. Preserve the source skin tone and keep text off the face. Do not copy the reference video speech or camera props into unrelated footage.",
       "motionRules": "Change text and overlays at spoken idea boundaries. Sampled frames show words being added and layouts being replaced, but do not establish entrance direction, easing, animation duration, or continuous zoom. Keep graphic positions steady while held. Use cuts as a conservative render choice where a transition is required.",
       "soundRules": "Sync visuals to the supplied speech. Music, level, tempo, and sound effects are unverified; add no signature whoosh, pop, beep, or glitch sound based on the images alone.",
       "limitations": "Inter Tight is the closest listed match to the observed heavy geometric sans; the exact font is unknown. Playfair Display is the closest listed option for the brief italic serif in the final value bar. One-second frame samples do not establish exact cut points, motion, zoom, or transition type. The sampled study does not establish audio treatment.",
-      "editRules": "Open on a direct problem statement over the centered speaker, dividing each clause into short white support text and one large lime keyword. Replace the phrase as the thought advances: prospects and value, then content failing. For the next objection, move text above the speaker and show camera-related imagery only when the speech turns to being on camera. Keep the same interview shot through uncertainty about what to say and revenue, using the REC frame and two question bars. Return to chest-level emphasis for the promise to take the work off the viewer’s plate. During the spoken service list, show PLAN, then PLAN/SHOOT/SCRIPT, then EDIT/POST cards. End the observed sequence with the olive value bar and the added word ‘working’. Select takes for clear speech and gestures; replace graphics on clause or list-item boundaries, with no fixed beat-length rule inferred from the samples.",
-      "assetRules": "Use a dark, centered vertical speaker take as the base. Insert the cream ring, microphone, and foreground camera only with a relevant camera setup; do not fabricate them over unrelated footage. Build the REC corners, warning and money bars, service cards, red strike, scanlines, and value bar as overlays when their corresponding speech beats occur. Cards need legible icons and labels. The final bar needs a speaker avatar crop. If a required camera shot, matte, icon, or avatar is unavailable, omit that specific motif and retain the speaker with readable white and lime text.",
+      "editRules": "Open on a complete thought spoken in the new video. Break important clauses into small white supporting words and one larger lime keyword. Keep the group in a shared safe rectangle: the first support row leans left, the hero row stays centered, and the last support row leans right without clipping. Reveal semantic runs at their spoken times, hold earlier runs in place, and replace the group when the idea changes. Use a brush, strike with scanlines, or REC frame only when the new speech supports that motif. Keep quieter explanation passages as subtitles; do not transplant the reference speaker wording, camera props, or service labels into unrelated content.",
+      "assetRules": "Use the supplied speaker footage and preserve skin tone. Add reference motifs only when the new speech and footage support them: red strike and scanlines for a negative claim, rough olive brush for a strong positive idea, REC corners for recording anxiety, and list cards only for an actual spoken list. Do not invent a camera, microphone, avatar, or reference-video text over unrelated footage. If supporting assets are unavailable, keep compact white and lime typography over the speaker.",
       "recipeChecks": [
-        "The opening uses dark, centered speaker footage with chest-level white support text and a substantially larger lime keyword.",
-        "The failing-content beat shows a red diagonal strike across ‘Content’ and thin vertical stripes across the frame.",
-        "The ‘You know content’ upper layout places text behind the speaker’s head.",
-        "The recording-anxiety section shows a REC corner frame followed by one, then two, dark red question bars.",
-        "The service list progresses from PLAN to three cards, then to EDIT and POST.",
-        "The final observed layout shows an olive value bar with avatar and italic serif ‘value...’, followed by ‘working’ above it.",
-        "No sound effect or precise entrance animation is treated as observed evidence."
+        "Small off-white support clauses frame a substantially larger lime keyword in compact rows near the speaker chest.",
+        "Spoken runs appear one by one while earlier runs hold position; phrases change at idea boundaries.",
+        "A red strike and fine scanlines appear for spoken failure or negation, an olive brush mark for a selected affirmative idea, and REC corners only when the speech concerns recording.",
+        "Reference-only words, props, cards and camera shots are not inserted when the new speech or footage does not support them.",
+        "No sound effect or exact easing is assumed from sampled reference frames."
       ],
       "visualMotifs": [
         "On ‘prospects’ around 0–1 s, place a large lime ‘Prospects’ across the speaker’s chest while smaller white words accumulate around it; the exact reveal motion is unknown.",

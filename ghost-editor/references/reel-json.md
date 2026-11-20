@@ -61,6 +61,8 @@ the build warns on a double booking).
 | `endcard` | `title`, `line`, `url` (usually `at: "outro+0"`) | whoosh | the close |
 | `broll` | `src` (an mp4 in the project), `in` (seconds into the clip), `zoom` ([from, to], default [1, 1.08]), `grade`, `mode: "split"` (clip fills the top `h` px, default 960; the speaker plate slides down by `shift`, default 560, once per run of adjacent split beats) | none (set `sfx` to add one) | a full-screen video cutaway on the word it illustrates (e.g. AI B-roll from MiniMax H3); captions stay on top, the clip is muted |
 | `title` | `words: [{text, at}]` (or `text`), `y`, `size`, `font`, `weight`, `tracking`, `anim` (`pop` or `blur`), `color`, `glow` | none (set `sfx`) | giant uppercase display words above the head that land on their spoken times (reference styles: @iphone_igor pops, @rpn blur-in) |
+| `review-bds-type` | `kind: "talk" \| "display"`, `placement: "upper" \| "center"`, `text`, `parts: [{text, role, row, at}]` where role is `white`, `magenta`, `teal`, `yellow`, `navy`, `peach`, `script` or `muted` | none | Review BĐS only: exact spoken words in compact rows; white support, one condensed colored keyword, spoken figures in a contrasting color and selective cursive. Ordinary captions hide for the entire beat. |
+| `review-bds-media` | `src` (local Pexels asset), `mediaKind: "video" \| "photo"`, `layout: "full" \| "card" \| "gallery"`, optional `gallery` of two more photos, `query`, `spokenIdea` | none | Review BĐS only: relevant full-bleed property footage, rounded photo on a blurred background or three distinct photos on teal. Preserve Pexels source records and illustrative label. |
 
 `icon` slugs come from simpleicons.org (fetched at build time, CC0).
 

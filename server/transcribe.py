@@ -7,7 +7,7 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 
 
-def main(source: str, destination: str, vocabulary: str = "") -> None:
+def main(source: str, destination: str, vocabulary: str = "", model_override: str = "") -> None:
     cache = Path(__file__).resolve().parents[1] / ".cache"
     candidates = {
         "medium": (cache / "faster-whisper-medium", 1_400_000_000),
@@ -20,10 +20,10 @@ def main(source: str, destination: str, vocabulary: str = "") -> None:
             if snapshot.is_dir() and (snapshot / "model.bin").exists() and (snapshot / "model.bin").stat().st_size > 1_400_000_000:
                 candidates["medium"] = (snapshot, 1_400_000_000)
                 break
-    requested = os.environ.get("AI_EDITOR_ASR_MODEL", "auto").lower()
-    if requested not in ("auto", *candidates):
-        raise ValueError("AI_EDITOR_ASR_MODEL must be auto, medium, small, or tiny")
-    names = ("medium", "small", "tiny") if requested == "auto" else (requested,)
+    requested = (model_override or os.environ.get("AI_EDITOR_ASR_MODEL", "auto")).lower()
+    if requested not in ("auto", "fast", *candidates):
+        raise ValueError("AI_EDITOR_ASR_MODEL must be auto, fast, medium, small, or tiny")
+    names = ("medium", "small", "tiny") if requested == "auto" else ("small", "medium", "tiny") if requested == "fast" else (requested,)
     ready = [(name, candidates[name][0]) for name in names if
              (candidates[name][0] / "model.bin").exists() and
              (candidates[name][0] / "model.bin").stat().st_size > candidates[name][1]]
@@ -59,4 +59,4 @@ def main(source: str, destination: str, vocabulary: str = "") -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "", sys.argv[4] if len(sys.argv) > 4 else "")

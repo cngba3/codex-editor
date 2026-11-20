@@ -1,23 +1,28 @@
 {
-  "_about": "Pop magazine: giant condensed display words BEHIND the speaker (cut-out matte), uppercase captions with a hot colour box on keywords, bold colour-block scenes, upbeat pop bed.",
+  "_about": "From the first seconds of the Pop Up Text sample: keep the original talking-head frame, place very large condensed yellow words in the open space above the speaker, and use a person matte where the words pass behind the head or shoulders. Reveal words on speech with a short blur-to-sharp pop and use a small white handwritten bridge sparingly. Hide small subtitles while the same words appear as the main title. Adapt placement to the source face and background.",
   "brand": {
-    "accent": "#FF2E88",
-    "accentDark": "#D1106A",
-    "ink": "#111111",
-    "capSize": 56,
-    "font": "Unbounded"
+    "accent": "#FFE34A",
+    "accentDark": "#D8AE22",
+    "ink": "#171717",
+    "capSize": 44,
+    "font": "Oswald",
+    "displayFont": "Oswald"
   },
   "captions": {
-    "style": "editorial",
-    "group": 3,
-    "y": 1200,
-    "upper": true
+    "style": "mini",
+    "group": 4,
+    "y": 1580,
+    "font": "Inter Tight",
+    "size": 44,
+    "weight": 600,
+    "color": "#FFE34A",
+    "tracking": "0px"
   },
   "matte": true,
-  "sfxProfile": "standard",
+  "sfxProfile": "restrained",
   "music": {
     "id": "auto",
-    "db": -20
+    "db": -24
   },
   "look": {}
 }

@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer-core'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { getPexelsKey } from './pexels-config'
 
 type ImageInfo = {
   url?: string
@@ -28,13 +29,6 @@ const chrome = [
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 ].find(path => path && existsSync(path))
 
-function pexelsKey() {
-  if (process.env.PEXELS_API_KEY?.trim()) return process.env.PEXELS_API_KEY.trim()
-  const file = join(process.cwd(), '.env.local')
-  if (!existsSync(file)) return ''
-  return readFileSync(file, 'utf8').match(/^PEXELS_API_KEY=(.+)$/m)?.[1]?.trim() || ''
-}
-
 function photoScore(photo: PexelsPhoto, prompt: string) {
   const text = photo.alt.toLowerCase()
   let score = 0
@@ -54,7 +48,7 @@ function photoScore(photo: PexelsPhoto, prompt: string) {
 }
 
 async function pexelsIllustration(prompt: string, assets: string, rank = 0): Promise<StockImage | null> {
-  const key = pexelsKey()
+  const key = getPexelsKey()
   if (!key) return null
   const realEstate = /townhouse|shophouse|villa|property|real estate|ground.floor shop/i.test(prompt)
   const queries = realEstate ? ['modern townhouse exterior Vietnam', 'modern residential buildings Vietnam', 'modern townhouse exterior'] : searchTerms(prompt).slice(0, 2)

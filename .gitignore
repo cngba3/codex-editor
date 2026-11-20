@@ -4,6 +4,7 @@ dist-server/
 release/
 .runtime/
 *.local
+.pexels-key
 *.tsbuildinfo
 jobs/
 .cache/

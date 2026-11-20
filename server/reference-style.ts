@@ -11,7 +11,7 @@ export type ReferenceStudy = {
   editRules?: string; assetRules?: string; recipeChecks?: string[]; visualMotifs?: string[]
 }
 
-export type StoredReferenceStyle = { id: string; name: string; about: string; basePreset: string; study: ReferenceStudy }
+export type StoredReferenceStyle = { id: string; name: string; category?: string; about: string; basePreset: string; study: ReferenceStudy }
 
 type Run = (command: string, args: string[], options?: { cwd?: string; input?: string }) => Promise<string>
 const fonts = new Set(['Inter', 'Inter Tight', 'Montserrat', 'Oswald', 'Playfair Display', 'Unbounded', 'Geist'])

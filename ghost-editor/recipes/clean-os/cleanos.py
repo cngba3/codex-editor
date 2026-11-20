@@ -22,10 +22,10 @@ builder's output (numbers), never the cut plan.
 
 The house (house.json, SYSTEM.md; the same every reel):
 - the speaker's plate AS SHOT (no filter, no grade); one slow push per shot (1.00 -> 1.04); a soft dark fade under the chin;
-- word cards on the chest: Inter, lowercase, 1-3 words, blur-resolve 0.22 s, a quiet pop each; QuickType on a choice word;
+- compact white Inter Tight anchors on the chest; yellow Dancing Script and white Patrick Hand phrases arrive on speech and accumulate until the thought ends;
 - full-screen phone scenes <= 2.5 s that open on the word and leave on the next idea; frame 1 is the speaker's face;
 - chest cards below the chin and widgets above the head keep the speaker's face on screen (the guard fails the build on a touch);
-- the red Figma selection box (focus / reject / delete), the Markup pen on the signature word, one accent colour;
+- the reference treatment uses a warm yellow accent against white; legacy Figma and phone tools remain available for old projects only;
 - one small UI sound per graphic entrance, nothing on bare cuts; a quiet ambient bed under the voice.
 Budgets that FAIL the build: face on screen >= 65 %, a scene <= 2.5 s, >= 1.5 s of face between two scenes, <= 3 inserts
 a minute, every cover window hidden, nothing on the face. What changes every reel: the scenes, chest / top components,
@@ -58,12 +58,13 @@ CURSOR = ('<svg class="cursor" viewBox="0 0 28 28" width="64" height="64"><path 
 class CleanOS(Reel):
     """One Clean OS reel. Times are edit seconds; get them from words with R.t("word") / R.w("word", near)."""
 
-    def __init__(self, project, accent="#0A84FF", fixes=None, shots=None, push=0.04, tail=0.45, cover=None,
+    def __init__(self, project, accent="#F7E769", fixes=None, shots=None, push=0.0, tail=0.45, cover=None,
                  card_fix=None, proper=(), plate=None, voice="assets/voice.wav", words=None, fps=30):
         super().__init__(project, plate=plate, voice=voice, words=words, fixes=fixes, tail=tail, cover=cover, fps=fps)
         self.acc, self.push, self.card_fix = accent, push, dict(card_fix or {})
         self.proper = {norm(x) for x in proper}
         self.shots = self._shots(shots)
+        self.reference_mode = True
         self.scenes, self.overs, self.busy, self.caps = [], [], [], []
         self.H = {k: [] for k in ("top", "chest", "fig", "pen", "hero", "scene", "icon", "extra")}
         fb = self.face_box()
@@ -319,6 +320,156 @@ class CleanOS(Reel):
         self.H["hero"].append(f'<div id="{cid}" class="xl" style="top:{top}px"><span class="hero">{hero}</span><span class="sub">{sub}</span></div>')
         return s
 
+    # ---------------------------------------------------------------- sampled @lamdiphuc 0-5 s grammar
+    def text_top(self, a, b, height, preferred):
+        """Place a text row in a face-clear safe band for its actual time window."""
+        zones = self.zones(a, b)
+        for name in ("chest", "top"):
+            _, y, _, available = zones[name]
+            if available >= height:
+                return int(max(y, min(preferred, y + available - height)))
+        raise BuildError(f"no face-clear {height}px text band at {a:.2f}-{b:.2f} s")
+
+    def talk_line(self, oid, text, a, b, top=None, color="white", size=90, allow_overlap=False):
+        """Short, heavy sans words over the speaker's chest. Use exact spoken words; 1-3 words per beat."""
+        if not text.strip() or not 0 <= a < b <= self.T or b - a < 0.18:
+            raise BuildError(f"talk_line {oid}: invalid text or time")
+        if color not in ("white", "yellow"):
+            raise BuildError(f"talk_line {oid}: color white or yellow")
+        top = int(top if top is not None else self.text_top(a, b, 130, min(1450, max(1080, self.chin + 70))))
+        size = min(int(size), int(840 / max(1, .55 * len(text))))
+        self.guard(f"talk_line {oid}", (110, top, 860, 130), a, b)
+        self.block(max(0, a - .04), min(self.T, b + .04))
+        self.overs.append((oid, r3(a), r3(b), "talk", "word"))
+        selector = f"#{oid}"
+        if a < .05:
+            self.st(selector, {"autoAlpha": 1, "filter": "blur(0px)"}, 0)
+        else:
+            self.ft(selector, {"autoAlpha": 0, "y": 8, "filter": "blur(5px)"},
+                    {"autoAlpha": 1, "y": 0, "filter": "blur(0px)", "duration": .12, "ease": "power2.out"}, a)
+        if b < self.T - .02:
+            self.st(selector, {"autoAlpha": 0}, b)
+        self.beat(oid, "talk", a, b, text)
+        overlap = ' data-layout-allow-overlap' if allow_overlap else ''
+        self.H["chest"].append(f'<div id="{esc(oid)}" class="co-talk co-{color}"{overlap} style="top:{top}px;font-size:{max(48, size)}px">{esc(text)}</div>')
+        return selector
+
+    def handwritten(self, oid, text, a, b, position="chest", color="yellow", top=None, size=140, variant=None, pointer=False, allow_overlap=False):
+        """Spoken keyword: yellow elegant script, yellow rough chalk, or white marker. Optional pointer accompanies an upper note."""
+        if not text.strip() or not 0 <= a < b <= self.T or b - a < .3:
+            raise BuildError(f"handwritten {oid}: invalid text or time")
+        if position not in ("chest", "upper") or color not in ("white", "yellow"):
+            raise BuildError(f"handwritten {oid}: position chest/upper, color white/yellow")
+        variant = variant or ("script" if color == "yellow" else "marker")
+        if variant not in ("script", "chalk", "marker") or (variant == "marker") != (color == "white"):
+            raise BuildError(f"handwritten {oid}: use yellow script/chalk or white marker")
+        face = self.face_box()
+        top = int(top if top is not None else (max(80, int(face[1]) - 210) if position == "upper" else self.text_top(a, b, 180, min(1440, max(1110, self.chin + 85)))))
+        size = min(int(size), int(860 / max(1, .52 * len(text))))
+        self.guard(f"handwritten {oid}", (100, top, 880, 180), a, b)
+        # This is the on-screen wording for the phrase, including upper labels:
+        # suppress the automatic chest captions while it is visible.
+        self.block(max(0, a - .04), min(self.T, b + .04))
+        self.overs.append((oid, r3(a), r3(b), position, "write"))
+        selector = f"#{oid}"
+        self.st(selector, {"autoAlpha": 1}, a)
+        self.ft(selector + " .co-script-ink", {"clipPath": "inset(0 100% 0 0)"},
+                {"clipPath": "inset(0 0% 0 0)", "duration": min(.35, (b - a) * .55), "ease": "power2.out"}, a)
+        if b < self.T - .02:
+            self.st(selector, {"autoAlpha": 0}, b)
+        self.beat(oid, "write", a, b, text)
+        hand = ('<svg class="co-pointer" viewBox="0 0 120 120" aria-hidden="true"><path d="M22 110 C15 93 10 76 19 71 C24 68 30 71 39 82 L39 24 C39 12 53 12 53 24 L53 64 C59 52 69 54 72 65 C78 54 89 59 89 71 C98 64 108 73 105 84 L98 110 Z" fill="#f6dfc8" stroke="#fff" stroke-width="5" stroke-linejoin="round"/></svg>'
+                if pointer and position == "upper" and face[1] > 360 else '')
+        overlap = ' data-layout-allow-overlap' if allow_overlap else ''
+        self.H["top" if position == "upper" else "chest"].append(
+            f'<div id="{esc(oid)}" class="co-script co-{color} co-{variant} co-{position}"{overlap} style="top:{top}px;font-size:{max(55, size)}px">{hand}<span class="co-script-ink">{esc(text)}<i></i></span></div>')
+        return selector
+
+    def number_line(self, oid, number, words, a, b, top=None):
+        """A spoken number in yellow handwriting followed by a short bold white phrase at chest height."""
+        if not number.strip() or not words.strip() or not 0 <= a < b <= self.T or b - a < .3:
+            raise BuildError(f"number_line {oid}: invalid text or time")
+        top = int(top if top is not None else self.text_top(a, b, 165, min(1450, max(1090, self.chin + 75))))
+        self.guard(f"number_line {oid}", (120, top, 840, 165), a, b)
+        self.block(max(0, a - .04), min(self.T, b + .04))
+        self.overs.append((oid, r3(a), r3(b), "number", "mixed"))
+        selector = f"#{oid}"
+        self.ft(selector, {"autoAlpha": 0, "scale": .94}, {"autoAlpha": 1, "scale": 1, "duration": .14, "ease": "power2.out"}, a)
+        if b < self.T - .02:
+            self.st(selector, {"autoAlpha": 0}, b)
+        self.beat(oid, "number", a, b, f"{number} {words}")
+        self.H["chest"].append(f'<div id="{esc(oid)}" class="co-number" style="top:{top}px"><span>{esc(number)}</span><b>{esc(words)}</b></div>')
+        return selector
+
+    def layered_words(self, oid, parts, b, top=None, layout="stack"):
+        """Reveal 2-4 spoken runs and HOLD them together. Each part: {text, at, style: bold|script|chalk|marker, zone: chest|upper}; layout stack|paired."""
+        if not isinstance(parts, list) or not 2 <= len(parts) <= 4 or not 0 < b <= self.T:
+            raise BuildError(f"layered_words {oid}: needs 2-4 parts and a valid common end")
+        if any(not isinstance(part, dict) or not isinstance(part.get("text"), str) or not part["text"].strip()
+               or part.get("style") not in ("bold", "script", "chalk", "marker") or part.get("zone", "chest") not in ("chest", "upper")
+               or not isinstance(part.get("at"), (int, float)) for part in parts):
+            raise BuildError(f"layered_words {oid}: each part needs spoken text, at, style and optional zone")
+        starts = [float(part["at"]) for part in parts]
+        if any(not 0 <= at < b - .18 for at in starts) or any(next_at <= at for at, next_at in zip(starts, starts[1:])):
+            raise BuildError(f"layered_words {oid}: part onsets must increase and leave a visible hold")
+        if len({part["style"] for part in parts}) < 2:
+            raise BuildError(f"layered_words {oid}: use at least two typographic roles from the reference")
+        if layout not in ("stack", "paired"):
+            raise BuildError(f"layered_words {oid}: layout stack or paired")
+        chest = [part for part in parts if part.get("zone", "chest") == "chest"]
+        if len(chest) > 3 or sum(part.get("zone") == "upper" for part in parts) > 1:
+            raise BuildError(f"layered_words {oid}: at most one upper line and three chest lines")
+        if layout == "paired" and len(chest) != 2:
+            raise BuildError(f"layered_words {oid}: paired layout needs two chest runs")
+        base = int(top if top is not None else (min(1370, max(1200, self.chin + 170)) if layout == "paired"
+                                             else min(1320, max(1070, self.chin + 95))))
+        row = 0
+        for index, part in enumerate(parts):
+            pid, at, kind = f"{oid}-{index}", starts[index], part["style"]
+            zone = part.get("zone", "chest")
+            if zone == "upper":
+                if kind == "bold":
+                    raise BuildError(f"layered_words {oid}: upper handwriting needs script or marker")
+                self.handwritten(pid, part["text"], at, b, position="upper", color="white" if kind == "marker" else "yellow", size=120,
+                                 variant=kind, pointer=kind == "marker")
+                continue
+            y = base + row * (98 if layout == "paired" else 172)
+            row += 1
+            if kind == "bold":
+                self.talk_line(pid, part["text"], at, b, top=y, size=92, allow_overlap=layout == "paired")
+            else:
+                self.handwritten(pid, part["text"], at, b, position="chest", color="white" if kind == "marker" else "yellow",
+                                 top=y, size=130 if kind == "script" else 112, variant=kind, allow_overlap=layout == "paired")
+        return f"#{oid}-0"
+
+    def black_statement(self, sid, a, b, lines, highlight=1):
+        """Hard-cut black idea slide: 2-4 exact spoken lines, one warm yellow line, sparse fixed dust specks."""
+        if not isinstance(lines, list) or not 2 <= len(lines) <= 4 or any(not isinstance(line, str) or not line.strip() for line in lines):
+            raise BuildError(f"black_statement {sid}: supply 2-4 spoken lines")
+        if not 0.1 <= a < b <= self.T or b - a < .7 or b - a > 2.5 or not 0 <= highlight < len(lines):
+            raise BuildError(f"black_statement {sid}: invalid timing or highlight")
+        self.full_screen(sid, a, b, "black statement", cap=2.5)
+        self.scenes.append((sid, r3(a), r3(b), "cut", "cut"))
+        self.block(max(0, a - .04), min(self.T, b + .04))
+        selector = f"#{sid}"
+        self.st(selector, {"autoAlpha": 1}, a)
+        if b < self.T - .02:
+            self.st(selector, {"autoAlpha": 0}, b)
+        self.beat(sid, "statement", a, b, " / ".join(lines))
+        rows = []
+        for i, line in enumerate(lines):
+            row_id = f"{sid}-line{i}"
+            try:
+                onset = max(a, min(b - .16, self.t(line, after=a)))
+            except BuildError:
+                onset = a + i * min(.35, (b - a) / len(lines))
+            self.ft(f"#{row_id}", {"autoAlpha": 0, "y": 24, "filter": "blur(7px)"},
+                    {"autoAlpha": 1, "y": 0, "filter": "blur(0px)", "duration": .28, "ease": "power2.out"}, onset)
+            rows.append(f'<div id="{esc(row_id)}" class="co-statement-row {"is-yellow" if i == highlight else ""}" style="font-size:{max(58, min(84, int(850 / max(1, .52 * len(line)))))}px">{esc(line)}</div>')
+        self.ft(f"#{sid} .co-statement-light", {"y": -320}, {"y": 1920, "duration": b - a, "ease": "none"}, a)
+        self.H["scene"].append(f'<div id="{esc(sid)}" class="co-statement scn" data-in="cut" data-out="cut"><i class="co-statement-light"></i><div class="co-statement-lines">{"".join(rows)}</div><i class="co-dust d1"></i><i class="co-dust d2"></i><i class="co-dust d3"></i></div>')
+        return selector
+
     # ---------------------------------------------------------------- captions (word cards)
     def card_text(self, ch):
         t = " ".join(w["text"] for w in ch).strip(" .!")
@@ -336,8 +487,8 @@ class CleanOS(Reel):
         ws, T = self.words, self.T
         brk = {norm(x) for x in breaks}
 
-        def blocked(t):
-            return any(a <= t <= b for a, b in self.busy)
+        def blocked_word(w):
+            return any(w["s"] < b and w["e"] > a for a, b in self.busy)
 
         units, cur, k = [], [], 0
 
@@ -349,7 +500,7 @@ class CleanOS(Reel):
 
         while k < len(ws):
             w = ws[k]
-            if blocked(w["s"] + 0.02) or blocked(w["e"] - 0.02):
+            if blocked_word(w):
                 close(); k += 1
                 continue
             key = round(w["s"], 2)
@@ -400,7 +551,9 @@ class CleanOS(Reel):
             a = ch[0]["s"]
             nxt = chunks[i + 1][0]["s"] if i + 1 < len(chunks) else T + 1
             b = min(nxt - 0.02, ch[-1]["e"] + 0.45, T)
-            b = max(min([b] + [x0 - 0.04 for x0, _ in self.busy if x0 > a]), a + 0.2)
+            b = min([b] + [x0 for x0, _ in self.busy if x0 > a])
+            if b <= a + .02:
+                continue
             sp = special.get(round(a, 2), {})
             out.append((sp.get("text") or self.card_text(ch), r3(a), r3(b), sp))
         html = []
@@ -430,10 +583,9 @@ class CleanOS(Reel):
             if a < 0.1:          # frame 1 is the cover: the hook words are already there, crisp
                 self.st(f"#{cid}", {"autoAlpha": 1, "scale": 1, "filter": "blur(0px)"}, 0)
             else:
-                self.ft(f"#{cid}", {"autoAlpha": 0, "scale": 0.84, "filter": "blur(14px)"},
-                        {"autoAlpha": 1, "scale": 1, "filter": "blur(0px)", "duration": 0.22, "ease": "power3.out"}, a - 0.03)
-                self.sound(POPS[i % 3], a - 0.02, f"card {txt}", db=-6 if kind is None else 0, gap=0.12)
-            self.tween(f"#{cid}", {"autoAlpha": 1, "filter": "blur(0px)"}, {"autoAlpha": 0, "filter": "blur(10px)", "duration": 0.12}, max(a + 0.24, b - 0.1))
+                self.ft(f"#{cid}", {"autoAlpha": 0, "y": 7, "filter": "blur(5px)"},
+                        {"autoAlpha": 1, "y": 0, "filter": "blur(0px)", "duration": 0.12, "ease": "power2.out"}, a - 0.02)
+            self.tween(f"#{cid}", {"autoAlpha": 1}, {"autoAlpha": 0, "duration": 0.06}, max(a + 0.18, b - 0.06))
         self.caps = out
         return html
 
@@ -441,9 +593,9 @@ class CleanOS(Reel):
     def _fonts_css(self):
         d = os.path.join(self.P, "assets", "fonts")
         css = os.path.join(d, "fonts-local.css")
-        if not os.path.exists(css) or "Marck" not in open(css).read():
-            subprocess.run([sys.executable, os.path.join(HERE, "fetch_fonts.py"), self.P, "Marck Script"], check=True)
-        return open(css).read().replace("url(", "url(assets/fonts/")
+        legacy = open(css).read().replace("url(", "url(assets/fonts/") if os.path.exists(css) else ""
+        vietnamese = os.path.join(self.P, "assets", "vietnamese-fonts.css")
+        return legacy + "\n" + (open(vietnamese, encoding="utf8").read() if os.path.exists(vietnamese) else "")
 
     def checks(self):
         """Clean OS budgets on top of the base ones: frame 1 the speaker's face, >= 1.5 s of face between scenes, OS time"""
@@ -461,11 +613,9 @@ class CleanOS(Reel):
                 cur = [a, b]
         tot += (cur[1] - cur[0]) if cur else 0.0
         os_pct = round(100 * tot / self.T, 1)
-        if not 20 <= os_pct <= 40:
-            self.notes.append(f"OS time {os_pct} % (the house runs 20-35 %)")
         return errs, os_pct
 
-    def build(self, special=None, css="", music="vastness", music_db=-24, duck=-4, quote=(), breaks=(), maxw=3, gap=0.2,
+    def build(self, special=None, css="", music=None, music_db=-24, duck=-4, quote=(), breaks=(), maxw=3, gap=0.2,
               max_chars=22, extra_cover=(), hook="", lang=None):
         """captions, the page (index.html), build/plan.json + beats.json + sfx_events.json; fails on a broken budget"""
         import kit
@@ -567,7 +717,7 @@ HOUSE_CSS = """
 .strike { position: absolute; left: -6px; right: -6px; top: 52%; height: 8px; background: #fff; transform-origin: 0 50%; }
 .cursor { position: absolute; right: -40px; bottom: -58px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.35)); }
 .mk { position: absolute; left: 0; right: 0; height: 290px; display: flex; justify-content: center; opacity: 0; }
-.mk .sw { display: block; font-family: "Marck Script"; color: #fff; line-height: 1.25; white-space: nowrap;
+.mk .sw { display: block; font-family: "Patrick Hand", Caveat, cursive; color: #fff; line-height: 1.25; white-space: nowrap;
   text-shadow: 0 0 3px rgba(0,0,0,.75), 0 0 14px rgba(0,0,0,.55), 0 8px 40px rgba(0,0,0,.5); }
 .mk .nib { position: absolute; left: 505px; top: 70px; opacity: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
 .mkbar { position: absolute; left: 190px; right: 190px; top: 1600px; height: 150px; border-radius: 40px; background: rgba(250,250,250,.94); display: flex;
@@ -586,6 +736,43 @@ HOUSE_CSS = """
 .wdg.light { background: rgba(246,246,248,.94); color: #111; }
 .wdg small { font-size: 28px; font-weight: 500; opacity: .7; letter-spacing: .01em; }
 .tabnum { font-variant-numeric: tabular-nums; }
+/* @lamdiphuc opening: compact bold words, handwritten yellow, hard-cut black statement. */
+:where(#root) > .card { top: 1510px; height: 80px; font-family: "Playfair Display", Georgia, serif; font-size: 45px; font-weight: 400;
+  letter-spacing: 0; color: #F7F6F1; text-shadow: 0 2px 9px rgba(0,0,0,.8); }
+:where(#root) > .card.xs { font-size: 41px; font-weight: 400; }
+:where(#root) > .card.s { font-size: 45px; font-weight: 400; }
+:where(#root) > .card.m { font-size: 50px; font-weight: 400; }
+.co-talk { position: absolute; left: 110px; width: 860px; height: 130px; display: flex; align-items: center; justify-content: center;
+  white-space: nowrap; font-family: "Inter Tight", Inter, sans-serif; font-weight: 850; letter-spacing: -.055em; line-height: 1;
+  color: #F7F6F1; opacity: 0; text-shadow: 0 3px 15px rgba(0,0,0,.7); }
+.co-talk.co-yellow { color: #F7E769; }
+.co-script { position: absolute; left: 100px; width: 880px; height: 180px; display: flex; align-items: center; justify-content: center;
+  white-space: nowrap; font-family: "Patrick Hand", Caveat, cursive; font-weight: 400; line-height: 1; opacity: 0; }
+.co-script.co-white { color: #F7F6F1; -webkit-text-stroke: 1px rgba(255,255,255,.72); text-shadow: 0 0 6px rgba(255,255,255,.75), 0 4px 14px rgba(0,0,0,.65); }
+.co-script.co-yellow { color: #F7E769; text-shadow: 0 2px 5px rgba(0,0,0,.8), 0 0 9px rgba(247,231,105,.28); }
+.co-script.co-yellow:not(.co-chalk) { font-family: "Dancing Script", Caveat, cursive; font-weight: 500; }
+.co-script.co-yellow.co-chalk { font-family: Caveat, "Patrick Hand", cursive; font-weight: 700; -webkit-text-stroke: 1.5px #F7E769;
+  text-shadow: 1px 0 rgba(247,231,105,.65), -2px 1px rgba(247,231,105,.36), 0 4px 10px rgba(0,0,0,.7); }
+.co-pointer { position: absolute; width: 140px; height: 140px; left: 50%; top: -116px; transform: translateX(-50%) rotate(12deg);
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.45)); }
+.co-script-ink { position: relative; display: inline-block; clip-path: inset(0 100% 0 0); }
+.co-script-ink i { position: absolute; left: 10%; right: 8%; bottom: 2px; height: 4px; border-radius: 60% 30%; transform: rotate(-2deg);
+  background: currentColor; opacity: 0; }
+.co-script.co-upper.co-marker .co-script-ink i { opacity: .6; }
+.co-number { position: absolute; left: 120px; width: 840px; height: 165px; display: flex; align-items: baseline; justify-content: center; gap: 10px;
+  color: #F7F6F1; opacity: 0; text-shadow: 0 3px 15px rgba(0,0,0,.7); }
+.co-number span { font: 700 138px Caveat, "Patrick Hand", cursive; color: #F7E769; -webkit-text-stroke: 1.5px #F7E769; }
+.co-number b { font: 850 86px "Inter Tight", Inter, sans-serif; letter-spacing: -.055em; }
+.co-statement { position: absolute; inset: 0; background: #050505; color: #F7F6F1; }
+.co-statement-light { position: absolute; left: 0; top: 0; width: 1080px; height: 320px; opacity: .12;
+  background: linear-gradient(180deg, transparent, #F7E769 48%, transparent); pointer-events: none; }
+.co-statement-lines { position: absolute; left: 110px; top: 50%; width: 860px; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.co-statement-row { max-width: 860px; white-space: nowrap; font-family: "Inter Tight", Inter, sans-serif;
+  font-weight: 850; line-height: 1.08; letter-spacing: -.055em; text-align: center; }
+.co-statement-row.is-yellow { color: #F7E769; }
+.co-dust { position: absolute; display: block; width: 3px; height: 3px; background: #aaa; opacity: .24; border-radius: 50%; }
+.co-dust.d1 { left: 26%; top: 18%; } .co-dust.d2 { left: 83%; top: 53%; } .co-dust.d3 { left: 44%; top: 81%; }
 """
 
 

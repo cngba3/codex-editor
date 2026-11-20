@@ -8,12 +8,12 @@
     "dev": "vite --host 127.0.0.1",
     "build": "node scripts/patch-hyperframes.mjs && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && vite build && node scripts/build-server.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "app:dev": "npm run prepare:runtime && npm run build && electron electron-main.mjs",
+    "app:dev": "npm run prepare:runtime && node scripts/prepare-pexels-bundle.mjs && npm run build && electron electron-main.mjs",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",
-    "dist:win": "node scripts/require-platform.mjs win32 x64 && npm run prepare:runtime && npm run build && electron-builder --win nsis --publish never",
+    "dist:win": "node scripts/require-platform.mjs win32 x64 && npm run prepare:runtime && node scripts/prepare-pexels-bundle.mjs && npm run build && electron-builder --win nsis --publish never",
     "setup:model": "node scripts/setup-model.mjs",
-    "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts",
-    "dist:mac": "node scripts/require-platform.mjs darwin && npm run prepare:runtime && npm run build && electron-builder --mac dmg --publish never",
+    "test:recipes": "tsx --no-cache --test scripts/test-recipes.ts scripts/test-amber.ts scripts/test-review-bds.ts",
+    "dist:mac": "node scripts/require-platform.mjs darwin && npm run prepare:runtime && node scripts/prepare-pexels-bundle.mjs && npm run build && electron-builder --mac dmg --publish never",
     "test:platform": "node --test scripts/test-platform.mjs",
     "test:core-beats": "tsx --no-cache --test scripts/test-core-beats.ts",
     "postinstall": "node scripts/patch-hyperframes.mjs",
@@ -74,6 +74,10 @@
       "!node_modules/ffprobe-static/bin/win32/ia32/**"
     ],
     "extraResources": [
+      {
+        "from": ".runtime/pexels-key",
+        "to": "pexels-key"
+      },
       {
         "from": ".runtime/${platform}-${arch}",
         "to": "runtime",

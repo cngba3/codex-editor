@@ -1,10 +1,11 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import type { Recipe } from './recipe-contract'
 import { pythonArgs, type Runner } from './native-pipeline'
 import { runFinalsStage } from './finals-stage'
+import { reviewPreview } from './preview-review'
 
-type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string }
+type QualityJob = { stage: string; progress: number; qa?: string; review?: string; recipe?: string; recipeVersion?: string; qualityRound?: number; warning?: string; previewFile?: string }
 const isJobCancelled = (error: unknown) => error instanceof Error && error.name === 'JobCancelledError'
 export async function finishRecipe(input: {
   root: string; directory: string; recipe: Recipe; run: Runner; job: QualityJob
@@ -12,12 +13,19 @@ export async function finishRecipe(input: {
 }) {
   const { root, directory, recipe, run, job, build } = input
   const cli = join(root, 'node_modules/hyperframes/bin/hyperframes.mjs')
+  const builder = join(root, 'ghost-editor/scripts/build.mjs')
   const output = join(directory, 'build/reel.mp4')
   const previousFailure = join(directory, 'build', 'repair-2.txt')
   let feedback = existsSync(previousFailure) ? readFileSync(previousFailure, 'utf8').slice(-16000) : ''
   let failureSummary = ''
-  let renderedOutput = false
   job.recipe = recipe.name; job.recipeVersion = recipe.fingerprint
+  try {
+    await run(process.execPath, ['--check', builder])
+  } catch (error) {
+    if (isJobCancelled(error)) throw error
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`Recipe builder failed its syntax check before quality rounds. ${detail}`)
+  }
   for (let round = 0; round < 3; round++) {
     job.qualityRound = round + 1
     job.stage = round ? `Sửa theo kiểm tra recipe · vòng ${round + 1}/3` : 'Dựng theo recipe'
@@ -42,17 +50,23 @@ export async function finishRecipe(input: {
       const approval = join(root, 'ghost-editor/scripts/approval_sheet.py')
       await run('uv', [...pythonArgs, approval, directory, '--no-build', '--max-frames', '24'])
       const approvalHtml = join(directory, 'build/approval.html')
-      await run('uv', [...pythonArgs, approval, directory, '--mark-approved'])
       const finalsDir = join(directory, 'build/finals')
       const manifest = join(directory, 'build/finals-manifest.json')
       writeFileSync(manifest, JSON.stringify({ reels: [{ project: directory, out: finalsDir, name: 'reel', workers: 1, recipe: recipe.id, profile: recipe.id === 'seoul-list' ? 'broll-led' : 'talking-head', no_music: false, normalize_loudness: true }] }), 'utf8')
       job.stage = `Render preview · vòng ${round + 1}/3`; job.progress = 75
       const preview = await runFinalsStage({ root, directory, manifest, stage: 'preview', run })
-      job.stage = 'Preview tự động được duyệt'; job.progress = 82
+      job.previewFile = basename(preview)
+      writeFileSync(manifest, JSON.stringify({ reels: [{ project: directory, out: finalsDir, name: 'reel', workers: 1, recipe: recipe.id, profile: recipe.id === 'seoul-list' ? 'broll-led' : 'talking-head', no_music: false, normalize_loudness: true, preview_file: job.previewFile }] }), 'utf8')
+      job.stage = 'Agent kiểm tra preview đã render'; job.progress = 80
+      const review = await reviewPreview({ root, directory, preview, recipe, round, run })
+      job.review = JSON.stringify(review)
+      writeFileSync(join(directory, 'build', 'quality.json'), JSON.stringify({ round: round + 1, preview, review, approval: approvalHtml, recipe: recipe.fingerprint }, null, 2))
+      if (!review.passed) throw new Error(`PREVIEW REVIEW: ${JSON.stringify(review).slice(0, 12000)}`)
+      await run('uv', [...pythonArgs, approval, directory, '--mark-approved'])
+      job.stage = 'Preview đạt kiểm tra tự động'; job.progress = 82
       job.stage = `Render MP4 · vòng ${round + 1}/3`; job.progress = 84
       const final = await runFinalsStage({ root, directory, manifest, stage: 'render', run })
       copyFileSync(final, output)
-      renderedOutput = true
       job.stage = 'Kiểm tra hình, âm thanh và recipe'; job.progress = 94
       const report = join(directory, 'build', `render-report-${round}.json`)
       let technicalFailure = ''
@@ -65,8 +79,7 @@ export async function finishRecipe(input: {
       job.qa = reportText.slice(-12000)
       const qa = JSON.parse(reportText) as { summary?: { status?: string }; checks?: Array<{ id?: string; status?: string; value?: string | number }> }
       const technicalPassed = !technicalFailure && ['pass', 'warn'].includes(qa.summary?.status || '')
-      job.review = undefined
-      writeFileSync(join(directory, 'build/quality.json'), JSON.stringify({ round: round + 1, technicalPassed, recipe: recipe.fingerprint, report, approval: approvalHtml, preview }, null, 2))
+      writeFileSync(join(directory, 'build/quality.json'), JSON.stringify({ round: round + 1, technicalPassed, review, recipe: recipe.fingerprint, report, approval: approvalHtml, preview }, null, 2))
       if (technicalPassed) return output
       failureSummary = (qa.checks || []).filter(check => check.status === 'fail').map(check => `${check.id || 'QA'}: ${String(check.value ?? 'không đạt')}`).join('; ') || technicalFailure || 'Báo cáo QA chưa đạt.'
       feedback = `TECHNICAL: ${technicalFailure}\nREPORT: ${reportText}`
@@ -77,9 +90,5 @@ export async function finishRecipe(input: {
     }
     writeFileSync(join(directory, 'build', `repair-${round}.txt`), feedback, 'utf8')
   }
-  if (renderedOutput && existsSync(output) && statSync(output).size > 0) {
-    job.warning = [job.warning, `Bản dựng đã xuất; QA chưa đạt sau 3 vòng: ${failureSummary}`].filter(Boolean).join(' ')
-    return output
-  }
-  throw new Error(`Không tạo được MP4 sau 3 vòng dựng. ${failureSummary}`)
+  throw new Error(`Chưa đạt kiểm tra sau 3 vòng sửa. ${failureSummary}`)
 }

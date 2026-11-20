@@ -399,6 +399,49 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   outline-offset: 2px;
 }
 
+.studio-style-video {
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #ffffffd9;
+  border-radius: 7px;
+  color: #263547;
+  background: #ffffffed;
+  box-shadow: 0 2px 8px #0f172a29;
+  cursor: pointer;
+}
+
+.studio-style-video:hover, .studio-style-video:focus-visible { color: var(--brand-accent, #0ea5e9); }
+.style-preview-video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.workspace-app .style-reel-video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.style-video-backdrop { position: fixed; z-index: 2100; inset: 0; display: grid; place-items: center; padding: 18px; background: #0f172a9c; }
+.style-video-dialog { width: min(100%, 430px); max-height: calc(100vh - 36px); overflow-y: auto; padding: 18px; border-radius: 16px; background: #fff; box-shadow: 0 20px 60px #0f172a55; color: #263547; }
+.style-video-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.style-video-heading h2 { margin: 0; font-size: 17px; }
+.style-video-heading p { margin: 6px 0 16px; color: #68778a; font-size: 12px; }
+.style-video-heading button { display: grid; place-items: center; border: 0; background: transparent; color: #68778a; cursor: pointer; }
+.style-video-player { width: min(100%, 300px); aspect-ratio: 9 / 16; margin: 0 auto 16px; overflow: hidden; border-radius: 12px; background: #101725; }
+.style-video-player iframe { display: block; width: 100%; height: 100%; border: 0; }
+.style-video-player video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.style-video-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 100%; height: 100%; padding: 20px; color: #fff; text-align: center; }
+.style-video-fallback p { margin: 0; font-size: 13px; line-height: 1.5; }
+.style-video-fallback button { padding: 8px 12px; border: 1px solid #ffffff80; border-radius: 8px; color: #fff; background: #ffffff26; cursor: pointer; }
+.facebook-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.facebook-preview p { color: #fff; font-size: 12px; text-align: center; }
+.style-video-dialog form label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
+.style-video-input-row { display: flex; gap: 8px; }
+.style-video-input-row input { min-width: 0; flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; }
+.style-video-input-row button { flex: none; padding: 10px 12px; border: 0; border-radius: 8px; background: #0ea5e9; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.style-video-error { margin: 7px 0 0; color: #b91c1c; font-size: 12px; }
+.style-video-remove { display: block; margin-top: 10px; padding: 0; border: 0; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; }
+.style-video-source { display: block; margin-top: 12px; color: #0b82b9; font-size: 12px; }
+
 .job-cancel-backdrop {
   position: fixed;
   z-index: 2000;

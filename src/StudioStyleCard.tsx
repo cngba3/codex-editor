@@ -4,17 +4,18 @@ import type { EditStyle } from './styles'
 type Props = {
   style: EditStyle
   previewSrc: string | null
+  videoPreviewSrc: string | null
   selected: boolean
   favorite: boolean
   onChoose: () => void
   onToggleFavorite: () => void
 }
 
-export default function StudioStyleCard({ style, previewSrc, selected, favorite, onChoose, onToggleFavorite }: Props) {
+export default function StudioStyleCard({ style, previewSrc, videoPreviewSrc, selected, favorite, onChoose, onToggleFavorite }: Props) {
   return <div className="studio-style-card">
     <button type="button" className={`style-card ${selected ? 'selected' : ''}`} onClick={onChoose} aria-pressed={selected}>
       <div className={`style-visual visual-${style.visual} ${previewSrc ? 'has-preview' : ''}`}>
-        {previewSrc ? <>
+        {videoPreviewSrc ? <video className="style-preview-video" src={videoPreviewSrc} poster={previewSrc || undefined} autoPlay muted loop playsInline preload="metadata" aria-hidden="true"/> : previewSrc ? <>
           <img className="preview-backdrop" src={previewSrc} alt="" aria-hidden="true" loading="lazy"/>
           <img className="style-preview-image" src={previewSrc} alt={style.name} loading="lazy"/>
         </> : <>

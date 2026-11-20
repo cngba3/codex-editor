@@ -1,20 +1,22 @@
 {
   "type": "object",
   "properties": {
+    "language_profile": { "type": "string" },
     "edits": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "segment": { "type": "integer" },
-          "word": { "type": "integer" },
-          "spelling": { "type": "string" }
+          "startWord": { "type": "integer" },
+          "endWord": { "type": "integer" },
+          "replacement": { "type": "string" }
         },
-        "required": ["segment", "word", "spelling"],
+        "required": ["segment", "startWord", "endWord", "replacement"],
         "additionalProperties": false
       }
     }
   },
-  "required": ["edits"],
+  "required": ["language_profile", "edits"],
   "additionalProperties": false
 }

@@ -227,15 +227,23 @@ def preview(r):
         fail_stage(f"FAILED preview encode {r['name']}", log)
     if not os.path.isfile(encoded) or not os.path.getsize(encoded):
         fail_stage(f"FAILED preview encode {r['name']}: empty output", log)
-    os.replace(encoded, out)
+    try:
+        os.replace(encoded, out)
+    except PermissionError:
+        # On Windows the previous preview may still be open in a media player.
+        # Keep the completed encode under a fresh name so the app can serve it
+        # without waiting for that reader to release the old file.
+        out = os.path.join(r["out"], f"{r['name']} (preview)-{os.getpid()}-{time.time_ns()}.mp4")
+        os.replace(encoded, out)
     os.remove(tmp)
     ledger("preview", r, time.time() - t0, out)
+    print(f"PREVIEW_OUTPUT\t{os.path.basename(out)}")
     print(f"{time.strftime('%H:%M:%S')} preview {r['name']} in {time.time() - t0:.0f} s ({os.path.getsize(out) / 2**20:.1f} MB) -> {out}")
 
 
 def render(r, force=False, no_music=True):
     os.makedirs(r["out"], exist_ok=True)
-    pv = os.path.join(r["out"], f"{r['name']} (preview).mp4")
+    pv = os.path.join(r["out"], r.get("preview_file") or f"{r['name']} (preview).mp4")
     idx = os.path.join(r["project"], "index.html")
     if not force and (not os.path.exists(pv) or os.path.getmtime(pv) < os.path.getmtime(idx)):
         fail_stage(f"HELD {r['name']}: no preview of the current build ({os.path.basename(pv)}); run `finals.py preview` first")

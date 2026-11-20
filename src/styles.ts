@@ -2,7 +2,8 @@ export type EditStyle = { id: string; name: string; category: string; descriptio
 
 export const editStyles: EditStyle[] = [
   { id: 'amber-talk', name: 'Amber Talk', category: 'Style từ template-1', description: 'Talking head ấm, phụ đề trắng nhỏ, từ khóa vàng kem nghiêng, zoom nhẹ và cảnh minh họa ngắn.', visual: 'cinematic', tags: ['Video mẫu', 'Talking head'] },
-  { id: 'clean-os', name: 'Clean OS', category: 'Talking head', description: 'Tối giản kiểu Apple: chữ sắc nét, giao diện điện thoại và các cú zoom gọn.', visual: 'clean', tags: ['Tối giản', 'Công nghệ'] },
+  { id: 'clean-os', name: 'Clean OS', category: 'Talking head', description: 'Chữ trắng đậm theo lời nói, nét viết tay vàng và slide đen nhấn ý.', visual: 'clean', tags: ['Chữ động', 'Talking head'] },
+  { id: 'review-bds', name: 'Review BĐS', category: 'Bất động sản', description: 'Talking head, chữ tím/xanh ngọc nổi bật, số vàng ấm; xen cảnh nhà, thẻ ảnh và gallery từ Pexels.', visual: 'editorial', tags: ['Nhà đất', 'Pexels', 'Review'] },
   { id: 'result-podcast', name: 'RESULT', category: 'Talking head', description: 'Không khí podcast ấm với thẻ navy, ảnh polaroid và ghi chú viết tay.', visual: 'result', tags: ['Kể chuyện', 'Ấm áp'] },
   { id: 'face-result', name: 'Face RESULT', category: 'Biến thể RESULT', description: 'Giữ khuôn mặt trong khung hình, bố trí giấy, ảnh và chữ quanh người nói.', visual: 'face', tags: ['Kể chuyện', 'Chân dung'] },
   { id: 'caption-news', name: 'Caption News', category: 'Talking head', description: 'Caption lớn theo nhịp nói, từ khóa vàng nổi bật và nhãn nguồn tin.', visual: 'news', tags: ['Tin tức', 'Caption'] },
@@ -35,7 +36,8 @@ export type StyleDetails = { bestFor: string; preparation?: string }
 // Guidance derived from the style theses and "best for" notes in Ghost Editor.
 export const styleDetails: Record<string, StyleDetails> = {
   'amber-talk': { bestFor: 'Video chia sẻ kiến thức, kinh nghiệm kinh doanh và lời khuyên trực diện.', preparation: 'Người nói trước máy quay; có thể thêm vài cảnh minh họa ngắn.' },
-  'clean-os': { bestFor: 'Giải thích ứng dụng, điện thoại, thói quen và ý tưởng gắn với trải nghiệm hằng ngày.' },
+  'clean-os': { bestFor: 'Video nói trực diện, mẹo nhanh, hướng dẫn ngắn và các ý cần nhấn bằng chữ lớn.' },
+  'review-bds': { bestFor: 'Giới thiệu nhà đất, căn hộ, công trình, mặt bằng và tiện ích; cảnh minh họa tìm theo nội dung người nói.', preparation: 'Video có lời giới thiệu rõ; footage thật của dự án sẽ giúp minh họa chính xác hơn.' },
   'result-podcast': { bestFor: 'Kể chuyện cá nhân, ký ức, góc nhìn và độc thoại kiểu podcast.' },
   'face-result': { bestFor: 'Kể chuyện hoặc chia sẻ cảm xúc khi người nói xuất hiện xuyên suốt trong khung hình.' },
   'caption-news': { bestFor: 'Tin nhanh, bình luận thời sự và nội dung cần nắm ý chính ngay cả khi tắt tiếng.', preparation: 'Nên có chủ đề rõ; ghi nguồn khi đề cập tin tức hoặc số liệu.' },

@@ -6,7 +6,7 @@ const project = path.resolve(process.argv[2])
 const cache = path.resolve('.cache/recipe-fonts')
 fs.mkdirSync(cache, { recursive: true })
 fs.mkdirSync(path.join(project, 'assets/fonts'), { recursive: true })
-const faces = [['Inter', '100..900'], ['Inter Tight', '100..900'], ['Caveat', '400..700'], ['Playfair Display', '400..900'], ['Montserrat', '100..900'], ['Oswald', '200..700'], ['JetBrains Mono', '100..800']]
+const faces = [['Inter', '100..900'], ['Inter Tight', '100..900'], ['Caveat', '400..700'], ['Dancing Script', '400..700'], ['Patrick Hand', '400'], ['Playfair Display', '400..900'], ['Montserrat', '100..900'], ['Oswald', '200..700'], ['JetBrains Mono', '100..800']]
 const ua = 'Mozilla/5.0 AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36'
 const output = []
 for (const [family, weights] of faces) {
@@ -20,7 +20,7 @@ for (const [family, weights] of faces) {
     css = await response.text()
     fs.writeFileSync(file, css)
   }
-  for (const block of css.matchAll(/\/\*\s*(vietnamese|latin-ext)\s*\*\/\s*(@font-face\s*\{[^}]+\})/g)) {
+  for (const block of css.matchAll(/\/\*\s*(vietnamese|latin-ext|latin)\s*\*\/\s*(@font-face\s*\{[^}]+\})/g)) {
     let face = block[2]
     const url = face.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/)?.[1]
     if (!url) continue
